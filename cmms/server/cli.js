@@ -312,24 +312,62 @@ function demo({ days = 90, password = 'Demo1234' } = {}) {
   return { users: users.length, assets: A.length, parts: P.length, work_orders: n };
 }
 
-function main() {
+async function backup(file) {
+  const fs = require('fs');
+  const dir = process.env.CMMS_BACKUP_DIR || path.join(path.dirname(path.resolve(file)), 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, `cmms-${time.nowIso().replace(/[:.]/g, '-')}.db`);
+  await db.backup(dest);
+  // keep the most recent backups only (default 30)
+  const keep = Number(process.env.CMMS_BACKUP_KEEP || 30);
+  const old = fs.readdirSync(dir).filter(f => /^cmms-.*\.db$/.test(f)).sort().reverse().slice(keep);
+  for (const f of old) fs.unlinkSync(path.join(dir, f));
+  return { dest, removed: old.length };
+}
+
+/** Emergency password reset from the server console (e.g. the only administrator is locked out). */
+function resetPassword(username, password) {
+  const u = db.get().prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (!u) throw new Error(`User ${username} not found`);
+  auth.validatePassword(password);
+  db.get().prepare('UPDATE users SET password_hash = ?, must_change_password = 1, failed_logins = 0, locked_until = NULL, is_active = 1, updated_at = ? WHERE id = ?')
+    .run(auth.hashPassword(password), time.nowIso(), u.id);
+  db.get().prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);
+  require('./audit').log({ user: null, ip: 'console' }, 'CONSOLE_PASSWORD_RESET', 'user', u.id, `${username} (reset from server console)`);
+}
+
+async function main() {
   const cmd = process.argv[2];
   const file = process.env.CMMS_DB || path.join(process.cwd(), 'data', 'cmms.db');
   db.open(file);
-  if (cmd === 'init') {
-    seed.initMasterData();
-    console.log(`Initialised ${file}. Sign in as "admin" with CMMS_ADMIN_PASSWORD; you will be asked to change it.`);
-  } else if (cmd === 'demo') {
-    seed.initMasterData();
-    const r = demo({ days: Number(process.env.CMMS_DEMO_DAYS || 90) });
-    console.log(`Demo data loaded into ${file}:`, r);
-    console.log('Demo accounts (password Demo1234): manager, sup.factory, sup.projects, tech.jun, tech.mark, tech.ana, tech.joel, tech.rico, store.cpf, custodian.cal, prod.cpf, viewer');
-  } else {
-    console.log('Usage: node server/cli.js init|demo');
+  try {
+    if (cmd === 'init') {
+      seed.initMasterData();
+      console.log(`Initialised ${file}. Sign in as "admin" with CMMS_ADMIN_PASSWORD; you will be asked to change it.`);
+    } else if (cmd === 'demo') {
+      seed.initMasterData();
+      const r = demo({ days: Number(process.env.CMMS_DEMO_DAYS || 90) });
+      console.log(`Demo data loaded into ${file}:`, r);
+      console.log('Demo accounts (password Demo1234): manager, sup.factory, sup.projects, tech.jun, tech.mark, tech.ana, tech.joel, tech.rico, store.cpf, custodian.cal, prod.cpf, viewer');
+    } else if (cmd === 'backup') {
+      const r = await backup(file);
+      console.log(`Backup written to ${r.dest}${r.removed ? ` (${r.removed} old backup(s) removed)` : ''}`);
+    } else if (cmd === 'reset-password') {
+      const [username, password] = [process.argv[3], process.env.CMMS_NEW_PASSWORD];
+      if (!username || !password) throw new Error('Usage: set CMMS_NEW_PASSWORD, then node server/cli.js reset-password <username>');
+      resetPassword(username, password);
+      console.log(`Password for ${username} reset. The user must change it at next sign-in; lockout cleared.`);
+    } else {
+      console.log('Usage: node server/cli.js init | demo | backup | reset-password <username>');
+      process.exitCode = 1;
+    }
+  } catch (e) {
+    console.error(`Error: ${e.message}`);
     process.exitCode = 1;
+  } finally {
+    db.close();
   }
-  db.close();
 }
 
 if (require.main === module) main();
-module.exports = { demo, ctxFor };
+module.exports = { demo, ctxFor, backup, resetPassword };

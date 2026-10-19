@@ -22,6 +22,8 @@ All of it is stored in a real database and enforced by the server.
 
 Requires Node.js 20 or later.
 
+**On Windows, the easiest way is the step-by-step guide [`docs/WINDOWS-PC-GUIDE.md`](docs/WINDOWS-PC-GUIDE.md)**: install Node.js, download the ZIP, and double-click `deploy\windows\start-demo.bat`.
+
 ```bash
 cd cmms
 npm install
@@ -64,7 +66,7 @@ The demo data is produced by running the real workflows day by day. Every dashbo
   - deactivate a user (they are signed out immediately)
   - **reset** a password (the user is signed out, the lockout is cleared, and they must change it at the next sign-in)
   - **unlock** a locked account
-- **Forgotten passwords:** the administrator resets them. No e-mail reset is built in because no mail server is configured.
+- **Forgotten passwords:** the administrator resets them. If the administrator is locked out, run `node server/cli.js reset-password admin` on the server with `CMMS_NEW_PASSWORD` set. No e-mail reset is built in because no mail server is configured.
 - **Audit:** every sign-in, password change, reset, unlock and role or permission change is written to the audit log.
 
 ## Configuration (environment variables)
@@ -98,6 +100,7 @@ Business rules are changed in the app under **Administration → Settings & rule
 - **Hosting:** run the app behind HTTPS (nginx, Caddy or IIS ARR) and set `CMMS_TRUST_PROXY=1` and `CMMS_SECURE_COOKIE=1`. No secrets are sent to the browser.
 - **Database:** SQLite in WAL mode, accessed through a thin data layer (`server/db.js`). It is suitable for a single-server pilot with dozens of concurrent users. If the system grows to many sites with heavy concurrency, move to PostgreSQL; the schema is portable.
 - **Backups:**
+  - `npm run backup` writes a consistent copy to `CMMS_BACKUP_DIR` and keeps the latest 30 (`CMMS_BACKUP_KEEP`). Schedule it nightly.
   - **Administration → Settings → Create database backup** takes a consistent online copy into `CMMS_BACKUP_DIR`.
   - Schedule an off-server copy of `CMMS_BACKUP_DIR` and `CMMS_UPLOAD_DIR`, for example nightly.
   - To restore: stop the app, replace `CMMS_DB` with a backup file, then start the app.

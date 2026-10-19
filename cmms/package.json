@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "init-db": "node server/cli.js init",
     "seed:demo": "node server/cli.js demo",
+    "backup": "node server/cli.js backup",
     "test": "node --test --test-concurrency=1 test/*.test.js"
   },
   "engines": {
