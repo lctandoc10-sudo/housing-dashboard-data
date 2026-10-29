@@ -3,10 +3,6 @@ import { h, mount, api, state, fmt, modal, filterBar, pageHead, label, kv, error
 
 const charts = [];
 function chart(canvas, cfg) {
-  // Axis text and gridlines follow the theme so they stay readable on the glass panels
-  const css = getComputedStyle(document.documentElement);
-  window.Chart.defaults.color = css.getPropertyValue('--muted').trim();
-  window.Chart.defaults.borderColor = css.getPropertyValue('--chart-grid').trim();
   const c = new window.Chart(canvas, { ...cfg, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, ...cfg.options } });
   charts.push(c); return c;
 }

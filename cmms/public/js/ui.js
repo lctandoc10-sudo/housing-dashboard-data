@@ -274,7 +274,7 @@ export function filterBar({ dates = true, site = true, category = false, woType 
 }
 export function assetPicker({ value, siteId, onPick, placeholder = 'Search equipment ID, name, serial or plate…' } = {}) {
   const input = h('input', { type: 'search', placeholder, autocomplete: 'off' });
-  const list = h('div', { class: 'panel dropdown', style: { display: 'none', position: 'absolute', zIndex: 20, left: 0, right: 0, maxHeight: '260px', overflowY: 'auto', padding: '4px' } });
+  const list = h('div', { class: 'panel', style: { display: 'none', position: 'absolute', zIndex: 20, left: 0, right: 0, maxHeight: '260px', overflowY: 'auto', padding: '4px' } });
   const wrap = h('div', { style: { position: 'relative' } }, input, list);
   wrap.value = value || null;
   const search = debounce(async () => {
