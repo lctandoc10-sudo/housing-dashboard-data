@@ -24,7 +24,7 @@ from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.chart.axis import ChartLines
 from openpyxl.chart.data_source import StrRef
 from openpyxl.chart.label import DataLabelList
-from openpyxl.chart.series import DataPoint, SeriesLabel
+from openpyxl.chart.series import SeriesLabel
 from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.drawing.line import LineProperties
 from openpyxl.formatting.rule import CellIsRule, DataBarRule, FormulaRule
@@ -784,11 +784,18 @@ def build_forecast(ws):
 # 6 - Dashboard
 # ---------------------------------------------------------------------------
 D_SEL, TILE0, KPI_H, KPI0 = 4, 6, 13, 14
-CH1_ROW, MAT_BAND, MAT_H, MAT0R = 21, 38, 39, 40
-FC_BAND, FC_USE_H, FC_CONC, FC_USE0 = 61, 62, 63, 64
-FC_IN_H, FC_IN0, FC_END_H, FC_END0 = 69, 70, 75, 76
-CH3_BAND, CH3_ROW, ACT_BAND, CH5_ROW = 82, 84, 100, 103
+STORE_BAND = 19                                              # silo & bins drawing
+V_LABEL, V_TOP, V_BOT, V_CONE, V_OUT, V_LEG = 21, 22, 41, 42, 43, 44
+V_NAME, V_PCT, V_QTY, V_DAYS, V_STATUS = 45, 46, 47, 48, 49
+MAT_BAND, MAT_H, MAT0R = 51, 52, 53                         # all-sites table
+ACT_BAND, CH5_ROW = 74, 76                                   # days-remaining + production charts
+FC_BAND, FC_USE_H, FC_CONC, FC_USE0 = 93, 94, 95, 96         # 6-month forecast tables
+FC_IN_H, FC_IN0, FC_END_H, FC_END0 = 101, 102, 107, 108
+CH3_BAND, CH3_ROW = 114, 116                                 # forecast charts
 NACT = 14
+NBANDS = 20                                                  # silo/bin height = 20 bands of 5 %
+VESSEL_COLS = [(3, 4), (6, 7), (8, 9), (10, 11)]             # cement silo C:D, aggregate bins F:G, H:I, J:K
+VESSEL_TINT = ["9EC5F4", "F6B08F", "8ED9BC", "F7D27A"]       # light tints of the material colours
 
 
 def _line_series(s, color, width=28575, dash=None, marker=True):
@@ -870,13 +877,14 @@ def build_dashboard(ws, sample):
     ws.row_dimensions[4].height = 24
 
     # helper block (columns Q..Z)
-    band(ws, 3, 17, 26, "CHART DATA & HELPERS (automatic — do not edit)", "ECECEA", MUTED)
+    band(ws, 3, 17, 29, "CHART DATA & HELPERS (automatic — do not edit)", "ECECEA", MUTED)
     ws["Q4"].value, ws["Q4"].font = "Site criteria", F(9, color=MUTED)
     ws["R4"] = '=IF(OR($C$4="",$C$4="All Sites"),"*",$C$4)'
     style(ws["R4"], "calc")
     header_row(ws, KPI_H, ["Code", "Lead (days)", "Safety (days)", "Reorder level\n(lead + safety)",
                            "Critical level\n(lead time)", "Days remaining\n(on hand)", "% of capacity",
-                           "Earliest reorder", "Earliest critical", "Earliest stock-out"], start_col=17, height=34)
+                           "Earliest reorder", "Earliest critical", "Earliest stock-out", "Silo/bin fill\n(of 20 bands)",
+                           "Critical mark\n(band)", "Reorder mark\n(band)"], start_col=17, height=34)
 
     # KPI table (B..O)
     header_row(ws, KPI_H, ["Material", "Unit", "Current\nStock", "Max\nCapacity", "% of\nCapacity", "Use / Day",
@@ -914,7 +922,11 @@ def build_dashboard(ws, sample):
                    22: f"=IF(ISNUMBER(H{r}),H{r},0)", 23: f"=IF(ISNUMBER(F{r}),F{r},0)"}
         for ci, rng in [(24, "SM_RBn"), (25, "SM_CRn"), (26, "SM_SOn")]:
             helpers[ci] = f"=SUMPRODUCT(MIN({mask}*{rng}+(1-{mask})*1E9))"
-        hf = {18: DAYS, 19: DAYS, 20: DAYS, 21: DAYS, 22: DAYS, 23: PCT, 24: NA_NUM, 25: NA_NUM, 26: NA_NUM}
+        helpers[27] = f"=IF(AND(E{r}>0,D{r}>0),MIN({NBANDS},MAX(1,ROUND(D{r}/E{r}*{NBANDS},0))),0)"
+        helpers[28] = f"=IF(AND(E{r}>0,G{r}>0,R{r}>0),MIN({NBANDS},MAX(1,ROUND(G{r}*R{r}/E{r}*{NBANDS},0))),0)"
+        helpers[29] = f"=IF(AND(E{r}>0,G{r}>0,T{r}>0),MIN({NBANDS},MAX(1,ROUND(G{r}*T{r}/E{r}*{NBANDS},0))),0)"
+        hf = {18: DAYS, 19: DAYS, 20: DAYS, 21: DAYS, 22: DAYS, 23: PCT, 24: NA_NUM, 25: NA_NUM, 26: NA_NUM,
+              27: "0", 28: "0", 29: "0"}
         for ci, formula in helpers.items():
             style(ws.cell(r, ci, formula), "calc", hf.get(ci), C)
         ws.row_dimensions[r].height = 20
@@ -950,42 +962,7 @@ def build_dashboard(ws, sample):
           foot='=IF(M7>0,"PLAN DECLARED","NO DATA")')
     status_cf(ws, f"B{TILE0 + 5}:O{TILE0 + 5}")
 
-    # charts 1 & 2
-    band(ws, CH1_ROW - 2, 2, LASTC, "STOCK LEVEL (% OF CAPACITY) AND DAYS REMAINING")
-    ch = BarChart()
-    ch.type, ch.grouping, ch.gapWidth = "col", "clustered", 70
-    ch.title = "Stock Level — % of Storage Capacity"
-    ch.add_data(Reference(ws, min_col=23, min_row=KPI0, max_row=kl), titles_from_data=False)
-    ch.set_categories(Reference(ws, min_col=2, min_row=KPI0, max_row=kl))
-    s_ = ch.series[0]
-    s_.tx = SeriesLabel(v="% of capacity")
-    for i, m in enumerate(MATERIALS):
-        pt = DataPoint(idx=i)
-        pt.graphicalProperties.solidFill = m[6]
-        pt.graphicalProperties.line.noFill = True
-        s_.dPt.append(pt)
-    _labels(s_, "0%", "outEnd")
-    _axes(ch, "0%")
-    ch.y_axis.scaling.min = 0
-    ch.legend = None
-    ch.width, ch.height = 16.4, 7.6
-    ws.add_chart(ch, f"B{CH1_ROW}")
-
-    ch = BarChart()
-    ch.type, ch.grouping, ch.gapWidth, ch.overlap = "col", "clustered", 60, -5
-    ch.title = "Days Remaining vs Reorder & Critical Levels"
-    for col_idx, color in [(22, "3A4654"), (20, "FAB219"), (21, "D03B3B")]:
-        ch.add_data(Reference(ws, min_col=col_idx, min_row=KPI_H, max_row=kl), titles_from_data=True)
-        ser = ch.series[-1]
-        ser.graphicalProperties.solidFill = color
-        ser.graphicalProperties.line.noFill = True
-    _labels(ch.series[0], "0.0", "outEnd")
-    ch.set_categories(Reference(ws, min_col=2, min_row=KPI0, max_row=kl))
-    _axes(ch, "0", "Working days")
-    ch.y_axis.scaling.min = 0
-    ch.legend.position = "b"
-    ch.width, ch.height = 19.0, 7.6
-    ws.add_chart(ch, f"H{CH1_ROW}")
+    _storage_visual(ws)
 
     # all-sites matrix
     band(ws, MAT_BAND, 2, LASTC, "ALL SITES — DAYS REMAINING (working days, colour = status) AND % OF CAPACITY")
@@ -1107,7 +1084,23 @@ def build_dashboard(ws, sample):
     ws.add_chart(agg, f"H{CH3_ROW}")
 
     # last 14 days actual production
-    band(ws, ACT_BAND, 2, LASTC, "ACTUAL CONCRETE PRODUCTION — LAST 14 DAYS vs DECLARED PLAN (selected site)")
+    band(ws, ACT_BAND, 2, LASTC, "DAYS REMAINING vs REORDER & CRITICAL LEVELS   ·   ACTUAL CONCRETE PRODUCTION, "
+                                 "LAST 14 DAYS (selected site)")
+    ch = BarChart()
+    ch.type, ch.grouping, ch.gapWidth, ch.overlap = "col", "clustered", 60, -5
+    ch.title = "Days Remaining vs Reorder & Critical Levels"
+    for col_idx, color in [(22, "3A4654"), (20, "FAB219"), (21, "D03B3B")]:
+        ch.add_data(Reference(ws, min_col=col_idx, min_row=KPI_H, max_row=KPI0 + NMAT - 1), titles_from_data=True)
+        ser = ch.series[-1]
+        ser.graphicalProperties.solidFill = color
+        ser.graphicalProperties.line.noFill = True
+    _labels(ch.series[0], "0.0", "outEnd")
+    ch.set_categories(Reference(ws, min_col=2, min_row=KPI0, max_row=KPI0 + NMAT - 1))
+    _axes(ch, "0", "Working days")
+    ch.y_axis.scaling.min = 0
+    ch.legend.position = "b"
+    ch.width, ch.height = 16.4, 7.6
+    ws.add_chart(ch, f"B{CH5_ROW}")
     header_row(ws, CH5_ROW - 1, ["Date", "Actual m3", "Planned m3/day", "Label"], start_col=17, height=18)
     for i in range(NACT):
         r = CH5_ROW + i
@@ -1131,17 +1124,116 @@ def build_dashboard(ws, sample):
     _axes(a5, "0", "m3")
     a5 += pl
     a5.legend.position = "b"
-    a5.width, a5.height = 35.4, 7.2
-    ws.add_chart(a5, f"B{CH5_ROW}")
+    a5.width, a5.height = 19.0, 7.6
+    ws.add_chart(a5, f"H{CH5_ROW}")
 
     widths(ws, {"A": 2, "B": 24, **{colL(c): 12.5 for c in range(3, 16)}, "M": 15, "P": 3, "Q": 13,
-                "R": 26, **{colL(c): 13 for c in range(19, 27)}})
+                "R": 26, **{colL(c): 13 for c in range(19, 30)}})
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.print_area = f"A1:O{CH5_ROW + 15}"
-    for brk in (MAT_BAND - 1, FC_BAND - 1, ACT_BAND - 1):
+    ws.print_area = f"A1:O{CH3_ROW + 16}"
+    for brk in (STORE_BAND - 1, MAT_BAND - 1, FC_BAND - 1):
         ws.row_breaks.append(Break(id=brk))
+
+
+def _storage_visual(ws):
+    """Cement silo + 3-compartment aggregate bin drawn with cells: each vessel fills (5 % bands) to its
+    % of storage capacity; dashed markers show the critical (lead time) and reorder levels."""
+    C = Alignment(horizontal="center", vertical="center")
+    wall = Side(style="medium", color="3A4654")
+    thin = Side(style="thin", color="3A4654")
+    ground = Side(style="thin", color="9AA0A6")
+    band(ws, STORE_BAND, 2, 15, '="STORAGE LEVELS — CEMENT SILO & AGGREGATE BINS ("&IF($R$4="*","all sites combined",'
+                                '$C$4)&")   ·   fill = stock on hand ÷ max storage capacity"')
+
+    # silo roof (/\) and bin title
+    sl, sr = VESSEL_COLS[0]
+    ws.cell(V_LABEL, sl).border = Border(diagonal=wall, diagonalUp=True)
+    ws.cell(V_LABEL, sr).border = Border(diagonal=wall, diagonalDown=True)
+    bl, br = VESSEL_COLS[1][0], VESSEL_COLS[-1][1]
+    ws.merge_cells(start_row=V_LABEL, start_column=bl, end_row=V_LABEL, end_column=br)
+    c = ws.cell(V_LABEL, bl, "AGGREGATE BINS")
+    c.font, c.alignment = F(9, True, MUTED), Alignment(horizontal="center", vertical="bottom")
+
+    # vessel bodies: one merged cell per 5 % band, filled by conditional formatting
+    bexpr = f"({V_BOT + 1}-ROW())"
+    for k, (cl, cr) in enumerate(VESSEL_COLS):
+        hr = KPI0 + k
+        for i, r in enumerate(range(V_TOP, V_BOT + 1)):
+            b = NBANDS - i
+            ws.merge_cells(start_row=r, start_column=cl, end_row=r, end_column=cr)
+            c = ws.cell(r, cl, f'=IF({b}=$AB${hr},"– – critical level – –",IF({b}=$AC${hr},"– – reorder level – –",'
+                               f'IF({b}=$AA${hr},TEXT($W${hr},"0%"),"")))')
+            c.font, c.alignment, c.fill, c.border = F(8, True, NAVY), C, fill("FFFFFF"), Border(left=wall)
+            ws.cell(r, cr).fill, ws.cell(r, cr).border = fill("FFFFFF"), Border(right=wall)
+        lvl, crit, reo, tint = f"$AA${hr}", f"$AB${hr}", f"$AC${hr}", fill(VESSEL_TINT[k])
+        rng = f"{colL(cl)}{V_TOP}:{colL(cr)}{V_BOT}"
+        for formula, bg, fg in [(f"AND({lvl}>={bexpr},{crit}={bexpr})", tint, "9E1F1F"),
+                                (f"AND({lvl}>={bexpr},{reo}={bexpr})", tint, "7A5200"),
+                                (f"{lvl}>={bexpr}", tint, NAVY),
+                                (f"{crit}={bexpr}", None, "9E1F1F"),
+                                (f"{reo}={bexpr}", None, "7A5200")]:
+            ws.conditional_formatting.add(rng, FormulaRule(formula=[formula], fill=bg, font=Font(color=fg, bold=True),
+                                                           stopIfTrue=True))
+
+    # ground line, hopper cones (\/), discharge outlets and support legs
+    for ci in range(2, 13):
+        ws.cell(V_LEG, ci).border = Border(bottom=ground)
+    for k, (cl, cr) in enumerate(VESSEL_COLS):
+        outer = wall if k in (0, 1) else None
+        ws.cell(V_CONE, cl).border = Border(left=outer, diagonal=wall, diagonalDown=True)
+        ws.cell(V_CONE, cr).border = Border(right=wall, diagonal=wall, diagonalUp=True)
+        ws.cell(V_OUT, cl).border = Border(left=outer, right=thin)
+        ws.cell(V_OUT, cr).border = Border(right=wall)
+        ws.cell(V_LEG, cl).border = Border(left=outer, bottom=ground)
+        ws.cell(V_LEG, cr).border = Border(right=wall, bottom=ground)
+
+    # labels under each vessel
+    for k, (cl, cr) in enumerate(VESSEL_COLS):
+        hr = KPI0 + k
+        suffix = " SILO" if k == 0 else " BIN"
+        rows = [(V_NAME, f'=UPPER(INDEX(Mat_Short,{k + 1}))&"{suffix}"', F(9, True, NAVY)),
+                (V_PCT, f'=IF(ISNUMBER(F{hr}),TEXT(F{hr},"0%")&" full",IF(M{hr}="NO DATA","not set up","no capacity set"))',
+                 F(12, True, NAVY)),
+                (V_QTY, f'=TEXT(D{hr},"#,##0")&" / "&TEXT(E{hr},"#,##0")&" "&C{hr}', F(8, color=MUTED)),
+                (V_DAYS, f'=IF(ISNUMBER(H{hr}),TEXT(H{hr},"0.0")&" days left",IF(M{hr}="NO DATA","–","no usage"))',
+                 F(9, True, "3A4654")),
+                (V_STATUS, f"=M{hr}", F(9, True, NAVY))]
+        for r, formula, font_ in rows:
+            ws.merge_cells(start_row=r, start_column=cl, end_row=r, end_column=cr)
+            c = ws.cell(r, cl, formula)
+            c.font, c.alignment = font_, C
+        ws.cell(V_STATUS, cl).fill = fill("ECECEA")
+        status_cf(ws, f"{colL(cl)}{V_STATUS}:{colL(cr)}{V_STATUS}")
+
+    # level scale (left) and how-to-read note (right)
+    for b, text in {20: "100% —", 15: "75% —", 10: "50% —", 5: "25% —"}.items():
+        c = ws.cell(V_TOP + NBANDS - b, 2, text)
+        c.font, c.alignment = F(8, color=MUTED), Alignment(horizontal="right", vertical="top")
+    c = ws.cell(V_BOT, 2, "0% —")
+    c.font, c.alignment = F(8, color=MUTED), Alignment(horizontal="right", vertical="bottom")
+    ws.merge_cells(start_row=V_TOP, start_column=13, end_row=V_TOP, end_column=15)
+    c = ws.cell(V_TOP, 13, "HOW TO READ")
+    c.font = F(9, True, NAVY)
+    ws.merge_cells(start_row=V_TOP + 1, start_column=13, end_row=V_TOP + 13, end_column=15)
+    c = ws.cell(V_TOP + 1, 13, "Coloured fill = stock on hand as % of the max storage capacity in Current Inventory "
+                               "(each band = 5 %).\n\n"
+                               "– – critical level – –  = usage during the supplier lead time.\n\n"
+                               "– – reorder level – –  = usage during lead time + safety stock.\n\n"
+                               "Badge under each vessel = status (it also counts scheduled deliveries due before the "
+                               "stock-out).\n\n"
+                               "All Sites = combined stock and capacity of all sites; pick a site in the yellow cell "
+                               "to see one site.")
+    c.font, c.alignment = F(8, color="3A4654"), Alignment(wrap_text=True, vertical="top")
+
+    ws.row_dimensions[V_LABEL].height = 26
+    for r in range(V_TOP, V_BOT + 1):
+        ws.row_dimensions[r].height = 13
+    ws.row_dimensions[V_CONE].height = 30
+    ws.row_dimensions[V_OUT].height = 10
+    ws.row_dimensions[V_LEG].height = 12
+    ws.row_dimensions[V_PCT].height = 18
 
 
 def _tile(ws, c1, c2, head, big, big_fmt, line1, line2, foot):
@@ -1204,6 +1296,9 @@ def build_instructions(ws, sample):
               "daily usage, days remaining, critical dates and the monthly forecast."),
         ("p", "7. Stock Monitor (4), Forecast (5) and Dashboard (6) are automatic. On the Dashboard, pick a site (or "
               "All Sites) in the yellow cell."),
+        ("p", "Dashboard silo & bins: the cement silo and the 3 aggregate bins fill up to their % of max storage "
+              "capacity (bands of 5 %). '– – critical level – –' marks the stock needed for the supplier lead time and "
+              "'– – reorder level – –' the stock for lead time + safety stock; the badge under each vessel is its status."),
         ("b", ""),
         ("h", "COLOUR LEGEND"),
         ("in", "Yellow cells = type your data here"),

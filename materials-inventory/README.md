@@ -18,7 +18,7 @@ Excel workbook that tracks cement, sand and gravel (3/4" and 3/8") for each hous
 | 4 | **Stock Monitor** | Automatic. Shows days remaining, stock-out date, on order, status (OK / REORDER / CRITICAL / OUT OF STOCK), reorder-by and critical-on dates, suggested order quantity and an action message. |
 | 5 | **Production Plan** | Declare planned m3 per working day per site and mix. Weekly and monthly volumes and material needs are calculated. |
 | 5 | **Forecast** | Automatic. Material use per day → week → month, then a 6-month projection: consumption, scheduled deliveries and quantity still to order each month. |
-| 6 | **Dashboard** | Pick a site (or All Sites). Shows day-count tiles, % of capacity, days remaining vs reorder and critical levels, an all-sites colour-coded table, the 6-month forecast and actual vs planned production for the last 14 days. |
+| 6 | **Dashboard** | Pick a site (or All Sites). Shows day-count tiles, a **cement silo and aggregate bins drawing** that fills to each material's % of capacity (with critical and reorder level markers and a status badge), days remaining vs reorder and critical levels, an all-sites colour-coded table, the 6-month forecast and actual vs planned production for the last 14 days. |
 | | **Mix Design** | Quantity of each material per 1 m3 of concrete, plus the allowance %. |
 | | **Settings** | As-of date (`=TODAY()`), working days, materials (unit, lead time, safety stock), site list, holidays. |
 
