@@ -43,7 +43,9 @@ MATERIALS = [
     ("SAND", "Sand", "Fine Aggregate - Washed Sand", "m3", 2, 2, "EB6834"),
     ("G34", 'Gravel 3/4"', 'Coarse Aggregate - 3/4" Crushed Gravel', "m3", 2, 2, "1BAF7A"),
     ("G38", 'Gravel 3/8"', 'Coarse Aggregate - 3/8" Crushed Gravel', "m3", 2, 2, "EDA100"),
+    ("ADM", "Admixture", "Concrete Admixture - Superplasticizer / Water Reducer", "L", 5, 3, "E87BA4"),
 ]
+CEM_IDX, AGG_IDX, ADM_IDX = 0, [1, 2, 3], 4      # positions in MATERIALS used by the dashboard visuals
 NMAT = len(MATERIALS)
 
 # Same site names as Housing Database.xlsx (Project Overview)
@@ -53,14 +55,15 @@ SITES = [
 ]
 
 MIXES = [
-    # code, description, class, cement bags, sand m3, gravel 3/4 m3, gravel 3/8 m3, allowance
-    ("MD-01", "Precast Wall Panel", "Class AA (1 : 1.5 : 3)", 12.0, 0.50, 0.00, 1.00, 0.03),
-    ("MD-02", "Precast Slab / Beam", "Class AA (1 : 1.5 : 3)", 12.0, 0.50, 1.00, 0.00, 0.03),
-    ("MD-03", "Footing / Ground Slab", "Class A (1 : 2 : 4)", 9.0, 0.50, 1.00, 0.00, 0.05),
-    ("MD-04", "Lean Concrete / Blinding", "Class C (1 : 3 : 6)", 6.0, 0.50, 1.00, 0.00, 0.05),
+    # code, description, class, cement bags, sand m3, gravel 3/4 m3, gravel 3/8 m3, admixture L, allowance
+    ("MD-01", "Precast Wall Panel", "Class AA (1 : 1.5 : 3)", 12.0, 0.50, 0.00, 1.00, 4.0, 0.03),
+    ("MD-02", "Precast Slab / Beam", "Class AA (1 : 1.5 : 3)", 12.0, 0.50, 1.00, 0.00, 4.0, 0.03),
+    ("MD-03", "Footing / Ground Slab", "Class A (1 : 2 : 4)", 9.0, 0.50, 1.00, 0.00, 2.5, 0.05),
+    ("MD-04", "Lean Concrete / Blinding", "Class C (1 : 3 : 6)", 6.0, 0.50, 1.00, 0.00, 0.0, 0.05),
 ]
-MIX_NOTE = ("Typical volumetric proportion per m3 using 40 kg bags (Philippine practice). "
-            "Replace with your approved, lab-tested mix design.")
+MIX_NOTE = ("Typical volumetric proportion per m3 using 40 kg bags (Philippine practice); admixture = typical "
+            "superplasticizer / water-reducer dosage. Replace with your approved, lab-tested mix design and the "
+            "supplier's recommended dosage.")
 
 # ---------------------------------------------------------------------------
 # Layout (rows) - change here and every formula follows
@@ -78,6 +81,18 @@ FCA0, FCA1 = 13, 32        # Forecast section A rows (one per Settings site)
 FCB_OFF = 32               # Forecast section B row = inventory row + 32
 FCB0, FCB1 = CI0 + FCB_OFF, CI1 + FCB_OFF
 NPER = 6                   # forecast periods
+# column positions that depend on the number of materials
+MIX_Q0 = 4                              # Mix Design: first quantity column (D)
+MIX_ALLOW = MIX_Q0 + NMAT               # allowance %
+MIX_NOTE_COL = MIX_ALLOW + 1            # notes / source
+MIX_EFF0 = MIX_NOTE_COL + 1             # first "incl. allowance" column
+CON_USE0 = 6                            # Consumption Log: first material-used column (F)
+CON_REM = CON_USE0 + NMAT               # element / remarks
+CON_CHK = CON_REM + 1                   # check
+PP_D0 = 7                               # Production Plan: first daily-need column (G)
+PP_M0 = PP_D0 + NMAT                    # first monthly-need column
+PP_REM = PP_M0 + NMAT                   # remarks
+PP_CHK = PP_REM + 1                     # check
 
 SHEET_ORDER = ["Instructions", "Dashboard", "Current Inventory", "Consumption Log", "Deliveries",
                "Stock Monitor", "Production Plan", "Forecast", "Mix Design", "Settings"]
@@ -256,14 +271,14 @@ def define_names(wb):
         "SiteList": f"Settings!$B${SITE0}:$B${SITE1}",
         "Mix_Code": f"'Mix Design'!$A${MIX0}:$A${MIX1}",
         "Mix_Desc": f"'Mix Design'!$B${MIX0}:$B${MIX1}",
-        "Mix_Eff": f"'Mix Design'!$J${MIX0}:$M${MIX1}",
+        "Mix_Eff": f"'Mix Design'!${colL(MIX_EFF0)}${MIX0}:${colL(MIX_EFF0 + NMAT - 1)}${MIX1}",
         "CI_Site": f"{CIq}!$A${CI0}:$A${CI1}",
         "CI_Mat": f"{CIq}!$B${CI0}:$B${CI1}",
         "CI_Count": f"{CIq}!$E${CI0}:$E${CI1}",
         "Con_Date": f"'Consumption Log'!$A${CON0}:$A${CON1}",
         "Con_Site": f"'Consumption Log'!$B${CON0}:$B${CON1}",
         "Con_Vol": f"'Consumption Log'!$D${CON0}:$D${CON1}",
-        "Con_Use": f"'Consumption Log'!$F${CON0}:$I${CON1}",
+        "Con_Use": f"'Consumption Log'!${colL(CON_USE0)}${CON0}:${colL(CON_USE0 + NMAT - 1)}${CON1}",
         "Del_Date": f"Deliveries!$A${DEL0}:$A${DEL1}",
         "Del_Site": f"Deliveries!$B${DEL0}:$B${DEL1}",
         "Del_Mat": f"Deliveries!$C${DEL0}:$C${DEL1}",
@@ -271,7 +286,7 @@ def define_names(wb):
         "Del_Status": f"Deliveries!$G${DEL0}:$G${DEL1}",
         "PP_Site": f"{PPq}!$A${PP0}:$A${PP1}",
         "PP_Vol": f"{PPq}!$D${PP0}:$D${PP1}",
-        "PP_Daily": f"{PPq}!$G${PP0}:$J${PP1}",
+        "PP_Daily": f"{PPq}!${colL(PP_D0)}${PP0}:${colL(PP_D0 + NMAT - 1)}${PP1}",
         "SM_Site": f"{SMq}!$A${CI0}:$A${CI1}",
         "SM_Mat": f"{SMq}!$B${CI0}:$B${CI1}",
         "SM_Stock": f"{SMq}!$E${CI0}:$E${CI1}",
@@ -339,6 +354,8 @@ def build_settings(ws):
         "SAND": "Loose volume as delivered (m3).",
         "G34": "Loose volume as delivered (m3).",
         "G38": "Loose volume as delivered (m3).",
+        "ADM": "Liquid, in litres. Delivered in 200 L drums or 1,000 L IBC totes. Lead time and safety stock are "
+               "assumptions: confirm with supplier.",
     }
     for i, (code, short, desc, unit, lead, safety, _c) in enumerate(MATERIALS):
         r = MAT0 + i
@@ -380,36 +397,35 @@ def build_settings(ws):
 # ---------------------------------------------------------------------------
 def build_mix(ws):
     title(ws, "Mix Design — Material Quantity per 1 m3 of Concrete",
-          "Fill in the yellow cells with your approved mix design (per 1 m3, in each material's unit). "
-          "The allowance % covers waste and is added to every m3 produced.")
-    band(ws, 3, 4, 8, "QUANTITY PER 1 m3 OF CONCRETE (input)")
-    band(ws, 3, 10, 13, "USED IN CALCULATIONS — incl. allowance (auto)")
+          "Fill in the yellow cells with your approved mix design (per 1 m3, in each material's unit: cement in bags, "
+          "aggregates in m3, admixture in litres). The allowance % covers waste and is added to every m3 produced.")
+    C = Alignment(horizontal="center", vertical="center")
+    band(ws, 3, MIX_Q0, MIX_ALLOW, "QUANTITY PER 1 m3 OF CONCRETE (input)")
+    band(ws, 3, MIX_EFF0, MIX_EFF0 + NMAT - 1, "USED IN CALCULATIONS — incl. allowance (auto)")
     labels = ["Mix Code", "Description / Element", "Class / Proportion"]
     labels += [f'=Settings!$C${MAT0 + k}&CHAR(10)&"("&Settings!$E${MAT0 + k}&" per m3)"' for k in range(NMAT)]
     labels += ["Allowance\n(waste) %", "Notes / Source"]
     labels += [f'=Settings!$C${MAT0 + k}&CHAR(10)&"incl. allowance"' for k in range(NMAT)]
     header_row(ws, 4, labels, height=40)
+    allow = colL(MIX_ALLOW)
     for r in range(MIX0, MIX1 + 1):
         i = r - MIX0
         mix = MIXES[i] if i < len(MIXES) else None
-        style(ws.cell(r, 1, mix[0] if mix else None), "in", None, Alignment(horizontal="center", vertical="center"),
-              bold=True)
+        style(ws.cell(r, 1, mix[0] if mix else None), "in", None, C, bold=True)
         style(ws.cell(r, 2, mix[1] if mix else None), "in")
         style(ws.cell(r, 3, mix[2] if mix else None), "in")
         for k in range(NMAT):
-            style(ws.cell(r, 4 + k, mix[3 + k] if mix else None), "in", RATE,
-                  Alignment(horizontal="center", vertical="center"))
-        style(ws.cell(r, 8, mix[7] if mix else None), "in", PCT, Alignment(horizontal="center", vertical="center"))
-        style(ws.cell(r, 9, MIX_NOTE if mix else None), "in", None, WRAP)
+            style(ws.cell(r, MIX_Q0 + k, mix[3 + k] if mix else None), "in", RATE, C)
+        style(ws.cell(r, MIX_ALLOW, mix[3 + NMAT] if mix else None), "in", PCT, C)
+        style(ws.cell(r, MIX_NOTE_COL, MIX_NOTE if mix else None), "in", None, WRAP)
         for k in range(NMAT):
-            src = colL(4 + k)
-            style(ws.cell(r, 10 + k, f'=IF($A{r}="","",N({src}{r})*(1+N($H{r})))'), "calc", "0.000",
-                  Alignment(horizontal="center", vertical="center"))
+            src = colL(MIX_Q0 + k)
+            style(ws.cell(r, MIX_EFF0 + k, f'=IF($A{r}="","",N({src}{r})*(1+N(${allow}{r})))'), "calc", "0.000", C)
         if mix:
-            ws.row_dimensions[r].height = 30
-    dv_number(ws, f"D{MIX0}:H{MIX1}")
-    widths(ws, {"A": 11, "B": 26, "C": 22, "D": 13, "E": 13, "F": 13, "G": 13, "H": 11, "I": 48,
-                "J": 13, "K": 13, "L": 13, "M": 13})
+            ws.row_dimensions[r].height = 42
+    dv_number(ws, f"{colL(MIX_Q0)}{MIX0}:{allow}{MIX1}")
+    widths(ws, {"A": 11, "B": 26, "C": 22, **{colL(MIX_Q0 + k): 13 for k in range(NMAT)}, allow: 11,
+                colL(MIX_NOTE_COL): 50, **{colL(MIX_EFF0 + k): 13 for k in range(NMAT)}})
     ws.freeze_panes = "B5"
 
 
@@ -474,19 +490,19 @@ def build_consumption(ws):
     labels += ["Element / Remarks", "Check"]
     header_row(ws, 4, labels, height=40)
     example_row(ws, 5, {1: dt.date(2026, 10, 1), 2: "Example Site", 3: "MD-01", 4: 18.5, 5: "Precast Wall Panel",
-                        6: "(auto)", 7: "(auto)", 8: "(auto)", 9: "(auto)",
-                        10: "Example row — wall panels, casting beds 1-3"}, 11)
+                        **{CON_USE0 + k: "(auto)" for k in range(NMAT)},
+                        CON_REM: "Example row — wall panels, casting beds 1-3"}, CON_CHK)
     a, b = CON0, CON1
     input_column(ws, 1, a, b, DATE)
     input_column(ws, 2, a, b)
     input_column(ws, 3, a, b, None, Alignment(horizontal="center", vertical="center"))
     input_column(ws, 4, a, b, QTY)
-    input_column(ws, 10, a, b)
+    input_column(ws, CON_REM, a, b)
     column_formula(ws, 5, a, b, '=IF($C{r}="","",IFERROR(INDEX(Mix_Desc,MATCH($C{r},Mix_Code,0)),"⚠ Unknown mix code"))')
     for k in range(NMAT):
-        column_formula(ws, 6 + k, a, b, T('=IF(OR($C{r}="",$D{r}=""),"",IFERROR($D{r}*INDEX(Mix_Eff,MATCH($C{r},'
-                                          'Mix_Code,0),{k}),""))', k=k + 1), QTY)
-    column_formula(ws, 11, a, b,
+        column_formula(ws, CON_USE0 + k, a, b, T('=IF(OR($C{r}="",$D{r}=""),"",IFERROR($D{r}*INDEX(Mix_Eff,'
+                                                 'MATCH($C{r},Mix_Code,0),{k}),""))', k=k + 1), QTY)
+    column_formula(ws, CON_CHK, a, b,
                    '=IF(AND($A{r}="",$B{r}="",$C{r}="",$D{r}=""),"",IF($A{r}="","⚠ Date missing",'
                    'IF($B{r}="","⚠ Site missing",IF(ISNA(MATCH($C{r},Mix_Code,0)),"⚠ Unknown mix code",'
                    'IF($D{r}="","⚠ Enter m3 produced",IF(COUNTIF(CI_Site,$B{r})=0,"⚠ Site not set up in Current Inventory",'
@@ -495,9 +511,10 @@ def build_consumption(ws):
     dv_list(ws, "SiteList", f"B{a}:B{b}", "Pick a site from the list (the list is kept in Settings).")
     dv_list(ws, "Mix_Code", f"C{a}:C{b}", "Pick a mix code from the Mix Design sheet.")
     dv_number(ws, f"D{a}:D{b}")
-    check_cf(ws, f"K{a}:K{b}", f"$K{a}")
-    widths(ws, {"A": 13, "B": 24, "C": 10, "D": 13, "E": 24, "F": 13, "G": 13, "H": 13, "I": 13, "J": 34,
-                "K": 36})
+    chk = colL(CON_CHK)
+    check_cf(ws, f"{chk}{a}:{chk}{b}", f"${chk}{a}")
+    widths(ws, {"A": 13, "B": 24, "C": 10, "D": 13, "E": 24, **{colL(CON_USE0 + k): 13 for k in range(NMAT)},
+                colL(CON_REM): 34, chk: 36})
     ws.freeze_panes = "B6"
 
 
@@ -611,7 +628,7 @@ def build_monitor(ws):
                                  f'$Q{{r}}<=$R{{r}}+$S{{r}}),"NOW",WORKDAY.INTL(AsOfDate,INT($Q{{r}}-$R{{r}}-$S{{r}}),{wd})))',
                    DATE, C)
     column_formula(ws, 23, a, b, f'=IF(OR($A{{r}}="",$U{{r}}="NO USAGE"),"",IF(OR($U{{r}}="OUT OF STOCK",'
-                                 f'$Q{{r}}<=$R{{r}}),"NOW",WORKDAY.INTL(AsOfDate,INT($Q{{r}}-$R{{r}}),{wd})))', DATE, C)
+                                 f'$Q{{r}}<=$R{{r}}),"NOW",WORKDAY.INTL(AsOfDate,ROUNDUP($Q{{r}}-$R{{r}},0),{wd})))', DATE, C)
     column_formula(ws, 24, a, b, '=IF($A{r}="","",IF(OR($U{r}="CRITICAL",$U{r}="REORDER",$U{r}="OUT OF STOCK"),'
                                  'IF($F{r}>0,ROUNDUP(MAX(0,$F{r}-MAX(0,MAX(0,$E{r})+$N{r}-$J{r}*$R{r})),0),'
                                  '"Set capacity"),0))', INT_DASH)
@@ -653,39 +670,41 @@ def build_plan(ws):
           "One row per site and mix design. Enter the planned concrete volume per working day; weekly and monthly "
           "volumes and material requirements are calculated.")
     band(ws, 3, 4, 6, "DECLARED PRODUCTION")
-    band(ws, 3, 7, 10, "DAILY MATERIAL NEED (incl. allowance)")
-    band(ws, 3, 11, 14, "MONTHLY MATERIAL NEED")
+    band(ws, 3, PP_D0, PP_M0 - 1, "DAILY MATERIAL NEED (incl. allowance)")
+    band(ws, 3, PP_M0, PP_REM - 1, "MONTHLY MATERIAL NEED")
     labels = ["Site / Project", "Mix Code", "Mix Description", "Planned\nm3 / Day", "m3 / Week", "m3 / Month"]
     labels += [f'=Settings!$C${MAT0 + k}&" / day"&CHAR(10)&"("&Settings!$E${MAT0 + k}&")"' for k in range(NMAT)]
     labels += [f'=Settings!$C${MAT0 + k}&" / month"&CHAR(10)&"("&Settings!$E${MAT0 + k}&")"' for k in range(NMAT)]
     labels += ["Remarks", "Check"]
     header_row(ws, 4, labels, height=40)
     example_row(ws, 5, {1: "Example Site", 2: "MD-01", 3: "Precast Wall Panel", 4: 20, 5: "(auto)", 6: "(auto)",
-                        **{7 + k: "(auto)" for k in range(2 * NMAT)},
-                        15: "Example row — panels, 2 casting beds"}, 16)
+                        **{PP_D0 + k: "(auto)" for k in range(2 * NMAT)},
+                        PP_REM: "Example row — panels, 2 casting beds"}, PP_CHK)
     a, b = PP0, PP1
     input_column(ws, 1, a, b)
     input_column(ws, 2, a, b, None, Alignment(horizontal="center", vertical="center"))
     input_column(ws, 4, a, b, QTY)
-    input_column(ws, 15, a, b)
+    input_column(ws, PP_REM, a, b)
     column_formula(ws, 3, a, b, '=IF($B{r}="","",IFERROR(INDEX(Mix_Desc,MATCH($B{r},Mix_Code,0)),"⚠ Unknown mix code"))')
     column_formula(ws, 5, a, b, '=IF($D{r}="","",$D{r}*WorkDaysWeek)', QTY)
     column_formula(ws, 6, a, b, '=IF($D{r}="","",$D{r}*WorkDaysMonth)', QTY)
     for k in range(NMAT):
-        column_formula(ws, 7 + k, a, b, T('=IF(OR($B{r}="",$D{r}=""),"",IFERROR($D{r}*INDEX(Mix_Eff,MATCH($B{r},'
-                                          'Mix_Code,0),{k}),""))', k=k + 1), QTY)
-        d = colL(7 + k)
-        column_formula(ws, 11 + k, a, b, T('=IF({d}{r}="","",{d}{r}*WorkDaysMonth)', d=d), QTY)
-    column_formula(ws, 16, a, b,
+        column_formula(ws, PP_D0 + k, a, b, T('=IF(OR($B{r}="",$D{r}=""),"",IFERROR($D{r}*INDEX(Mix_Eff,'
+                                              'MATCH($B{r},Mix_Code,0),{k}),""))', k=k + 1), QTY)
+        d = colL(PP_D0 + k)
+        column_formula(ws, PP_M0 + k, a, b, T('=IF({d}{r}="","",{d}{r}*WorkDaysMonth)', d=d), QTY)
+    column_formula(ws, PP_CHK, a, b,
                    '=IF(AND($A{r}="",$B{r}="",$D{r}=""),"",IF(OR($A{r}="",$B{r}=""),"⚠ Site and mix code required",'
                    'IF(ISNA(MATCH($B{r},Mix_Code,0)),"⚠ Unknown mix code",'
                    'IF(COUNTIF(CI_Site,$A{r})=0,"⚠ Site not set up in Current Inventory","OK"))))')
     dv_list(ws, "SiteList", f"A{a}:A{b}", "Pick a site from the list (the list is kept in Settings).")
     dv_list(ws, "Mix_Code", f"B{a}:B{b}", "Pick a mix code from the Mix Design sheet.")
     dv_number(ws, f"D{a}:D{b}")
-    check_cf(ws, f"P{a}:P{b}", f"$P{a}")
-    widths(ws, {"A": 24, "B": 10, "C": 24, "D": 11, "E": 11, "F": 11, "G": 13, "H": 13, "I": 13, "J": 13,
-                "K": 14, "L": 14, "M": 14, "N": 14, "O": 30, "P": 34})
+    chk = colL(PP_CHK)
+    check_cf(ws, f"{chk}{a}:{chk}{b}", f"${chk}{a}")
+    widths(ws, {"A": 24, "B": 10, "C": 24, "D": 11, "E": 11, "F": 11,
+                **{colL(PP_D0 + k): 13 for k in range(NMAT)}, **{colL(PP_M0 + k): 14 for k in range(NMAT)},
+                colL(PP_REM): 30, chk: 34})
     ws.freeze_panes = "B6"
 
 
@@ -784,18 +803,31 @@ def build_forecast(ws):
 # 6 - Dashboard
 # ---------------------------------------------------------------------------
 D_SEL, TILE0, KPI_H, KPI0 = 4, 6, 13, 14
-STORE_BAND = 19                                              # silo & bins drawing
-V_LABEL, V_TOP, V_BOT, V_CONE, V_OUT, V_LEG = 21, 22, 41, 42, 43, 44
-V_NAME, V_PCT, V_QTY, V_DAYS, V_STATUS = 45, 46, 47, 48, 49
-MAT_BAND, MAT_H, MAT0R = 51, 52, 53                         # all-sites table
-ACT_BAND, CH5_ROW = 74, 76                                   # days-remaining + production charts
-FC_BAND, FC_USE_H, FC_CONC, FC_USE0 = 93, 94, 95, 96         # 6-month forecast tables
-FC_IN_H, FC_IN0, FC_END_H, FC_END0 = 101, 102, 107, 108
-CH3_BAND, CH3_ROW = 114, 116                                 # forecast charts
+KPI_LAST = KPI0 + NMAT - 1
+NBANDS = 20                                                  # silo/bin/tank height = 20 bands of 5 %
+STORE_BAND = KPI_LAST + 2                                    # silo, bins & tank drawing
+V_LABEL = STORE_BAND + 2
+V_TOP, V_BOT = V_LABEL + 1, V_LABEL + NBANDS
+V_CONE, V_OUT, V_LEG = V_BOT + 1, V_BOT + 2, V_BOT + 3
+V_NAME, V_PCT, V_QTY, V_DAYS, V_STATUS = (V_LEG + i for i in range(1, 6))
+V_NOTE = V_STATUS + 1
+MAT_BAND = V_NOTE + 2                                        # all-sites table
+MAT_H, MAT0R = MAT_BAND + 1, MAT_BAND + 2
+ACT_BAND = MAT0R + (SITE1 - SITE0 + 1) + 1                   # days-remaining + production charts
+CH5_ROW = ACT_BAND + 2
+FC_BAND = CH5_ROW + 17                                       # 6-month forecast tables
+FC_USE_H, FC_CONC, FC_USE0 = FC_BAND + 1, FC_BAND + 2, FC_BAND + 3
+FC_IN_H = FC_USE0 + NMAT + 1
+FC_IN0 = FC_IN_H + 1
+FC_END_H = FC_IN0 + NMAT + 1
+FC_END0 = FC_END_H + 1
+CH3_BAND = FC_END0 + NMAT + 2                                # forecast charts (2 rows of 2)
+CH3_ROW = CH3_BAND + 2
+CH6_ROW = CH3_ROW + 17
 NACT = 14
-NBANDS = 20                                                  # silo/bin height = 20 bands of 5 %
-VESSEL_COLS = [(3, 4), (6, 7), (8, 9), (10, 11)]             # cement silo C:D, aggregate bins F:G, H:I, J:K
-VESSEL_TINT = ["9EC5F4", "F6B08F", "8ED9BC", "F7D27A"]       # light tints of the material colours
+# drawing: (left col, right col, kind) per material, in MATERIALS order
+VESSELS = [(3, 4, "silo"), (6, 7, "bin"), (8, 9, "bin"), (10, 11, "bin"), (13, 14, "tank")]
+VESSEL_TINT = ["9EC5F4", "F6B08F", "8ED9BC", "F7D27A", "F2B8CF"]   # light tints of the material colours
 
 
 def _line_series(s, color, width=28575, dash=None, marker=True):
@@ -840,7 +872,7 @@ def build_dashboard(ws, sample):
     C = Alignment(horizontal="center", vertical="center", wrap_text=True)
     LASTC = 15  # column O
     ws.sheet_view.showGridLines = False
-    ws["B1"].value, ws["B1"].font = "6 · Inventory Dashboard — Cement & Aggregates", F(16, True, NAVY)
+    ws["B1"].value, ws["B1"].font = "6 · Inventory Dashboard — Cement, Aggregates & Admixture", F(16, True, NAVY)
     ws["B2"] = ('="As of "&TEXT(AsOfDate,"dddd, dd mmmm yyyy")&"   ·   Days are working days ("&WorkDaysWeek&'
                 '" per week)   ·   Pick a site in the yellow cell"')
     ws["B2"].font = F(10, color=MUTED)
@@ -942,37 +974,39 @@ def build_dashboard(ws, sample):
                        "earliest date and the worst status across sites.").font = F(9, color=MUTED)
 
     # tiles
-    spans = [(2, 3), (4, 6), (7, 9), (10, 12)]
-    for k, (c1, c2) in enumerate(spans):
+    spans = [(2, 2), (3, 4), (5, 6), (7, 8), (9, 10)]
+    for k, (c1, c2) in enumerate(spans[:NMAT]):
         r = KPI0 + k
         _tile(ws, c1, c2,
               head=f'=B{r}&"  ("&C{r}&")"',
               big=f'=IF(ISNUMBER(H{r}),H{r},"–")', big_fmt='0.0" days"',
-              line1=(f'=IF(ISNUMBER(L{r}),IF($R$4="*","Earliest stock-out ≈ ","Stock-out ≈ ")&TEXT(L{r},"ddd dd-mmm-yyyy"),'
+              line1=(f'=IF(ISNUMBER(L{r}),IF($R$4="*","Earliest out ≈ ","Stock-out ≈ ")&TEXT(L{r},"ddd dd-mmm"),'
                      f'IF(L{r}="OUT","OUT OF STOCK now",IF(M{r}="NO DATA","Not set up yet","No usage declared")))'),
-              line2=(f'="Stock "&TEXT(D{r},"#,##0")&" "&C{r}&IF(ISNUMBER(F{r}),"  ·  "&TEXT(F{r},"0%")&" full","")'
-                     f'&IF(I{r}>0,"  ·  +"&TEXT(I{r},"#,##0")&" on order","")'),
+              line2=f'=TEXT(D{r},"#,##0")&" "&C{r}&IF(ISNUMBER(F{r}),"  ·  "&TEXT(F{r},"0%")&" full","")',
               foot=f"=M{r}")
-    _tile(ws, 13, 15, head="Planned Production (concrete)",
+    _tile(ws, 11, 15, head="Planned Production (concrete)",
           big="=SUMIFS(PP_Vol,PP_Site,SelCrit)", big_fmt='#,##0.0" m3/day"',
-          line1='="≈ "&TEXT(M7*WorkDaysMonth,"#,##0")&" m3 per month ("&WorkDaysMonth&" working days)"',
+          line1='="≈ "&TEXT(K7*WorkDaysMonth,"#,##0")&" m3 per month ("&WorkDaysMonth&" working days)"',
           line2=('="Actual, last 7 days: "&TEXT(SUMIFS(Con_Vol,Con_Site,SelCrit,Con_Date,">"&(AsOfDate-7),'
                  'Con_Date,"<="&AsOfDate)/MAX(1,NETWORKDAYS.INTL(AsOfDate-6,AsOfDate,WeekendMask,Holidays)),'
                  '"#,##0.0")&" m3/day"'),
-          foot='=IF(M7>0,"PLAN DECLARED","NO DATA")')
+          foot='=IF(K7>0,"PLAN DECLARED","NO DATA")')
     status_cf(ws, f"B{TILE0 + 5}:O{TILE0 + 5}")
 
     _storage_visual(ws)
 
     # all-sites matrix
     band(ws, MAT_BAND, 2, LASTC, "ALL SITES — DAYS REMAINING (working days, colour = status) AND % OF CAPACITY")
+    D0, P0 = 3, 3 + NMAT                    # first "days left" column, first "% full" column
+    W_, LO_, SO_ = 3 + 2 * NMAT, 4 + 2 * NMAT, 5 + 2 * NMAT
     labels = ["Site / Project"]
     labels += [f'=INDEX(Mat_Short,{k + 1})&CHAR(10)&"days left"' for k in range(NMAT)]
     labels += [f'=INDEX(Mat_Short,{k + 1})&CHAR(10)&"% full"' for k in range(NMAT)]
-    labels += ["Worst Status", "Lowest\nDays Left", "Material", "Stock-out ≈", "Items to\nOrder"]
+    labels += ["Worst Status", "Lowest\nDays Left", "Stock-out ≈"]
     header_row(ws, MAT_H, labels, start_col=2, height=34)
     nsites = SITE1 - SITE0 + 1
     m_last = MAT0R + nsites - 1
+    dl, dr = colL(D0), colL(D0 + NMAT - 1)
     for i, r in enumerate(range(MAT0R, m_last + 1)):
         s_row = SITE0 + i
         style(ws.cell(r, 2, f'=IF(Settings!$B{s_row}="","",Settings!$B{s_row})'), "calc", bold=True)
@@ -981,24 +1015,21 @@ def build_dashboard(ws, sample):
             stock = f"SUMIFS(SM_Stock,SM_Site,$B{r},SM_Mat,{code})"
             rate = f"SUMIFS(SM_Rate,SM_Site,$B{r},SM_Mat,{code})"
             cap = f"SUMIFS(SM_Cap,SM_Site,$B{r},SM_Mat,{code})"
-            style(ws.cell(r, 3 + k, f'=IF($B{r}="","",IF(COUNTIFS(SM_Site,$B{r},SM_Mat,{code})=0,"",'
-                                    f'IF({rate}>0,MAX(0,{stock})/{rate},"no use")))'), "calc", DAYS, C)
-            style(ws.cell(r, 7 + k, f'=IF($B{r}="","",IF({cap}>0,MAX(0,{stock})/{cap},""))'), "calc", PCT, C)
+            style(ws.cell(r, D0 + k, f'=IF($B{r}="","",IF(COUNTIFS(SM_Site,$B{r},SM_Mat,{code})=0,"",'
+                                     f'IF({rate}>0,MAX(0,{stock})/{rate},"no use")))'), "calc", DAYS, C)
+            style(ws.cell(r, P0 + k, f'=IF($B{r}="","",IF({cap}>0,MAX(0,{stock})/{cap},""))'), "calc", PCT, C)
         worst = (f'=IF($B{r}="","",IF(COUNTIF(SM_Site,$B{r})=0,"NOT SET UP",'
                  f'IF(COUNTIFS(SM_Site,$B{r},SM_Status,"OUT OF STOCK")>0,"OUT OF STOCK",'
                  f'IF(COUNTIFS(SM_Site,$B{r},SM_Status,"CRITICAL")>0,"CRITICAL",'
                  f'IF(COUNTIFS(SM_Site,$B{r},SM_Status,"REORDER")>0,"REORDER",'
                  f'IF(COUNTIFS(SM_Site,$B{r},SM_Status,"OK")>0,"OK","NO USAGE"))))))')
-        style(ws.cell(r, 11, worst), "calc", None, C, bold=True)
-        style(ws.cell(r, 12, f'=IF(COUNT(C{r}:F{r})=0,"",MIN(C{r}:F{r}))'), "calc", DAYS, C, bold=True)
-        style(ws.cell(r, 13, f'=IF(L{r}="","",INDEX(Mat_Short,MATCH(L{r},C{r}:F{r},0)))'), "calc", None, C)
-        style(ws.cell(r, 14, f'=IF(L{r}="","",IF(L{r}<=0,"OUT",'
-                             f'WORKDAY.INTL(AsOfDate,ROUNDUP(L{r},0),WeekendMask,Holidays)))'), "calc", DATE, C)
-        style(ws.cell(r, 15, f'=IF($B{r}="","",COUNTIFS(SM_Site,$B{r},SM_Status,"CRITICAL")'
-                             f'+COUNTIFS(SM_Site,$B{r},SM_Status,"REORDER")+COUNTIFS(SM_Site,$B{r},SM_Status,"OUT OF STOCK"))'),
-              "calc", "0", C)
+        style(ws.cell(r, W_, worst), "calc", None, C, bold=True)
+        lo = colL(LO_)
+        style(ws.cell(r, LO_, f'=IF(COUNT({dl}{r}:{dr}{r})=0,"",MIN({dl}{r}:{dr}{r}))'), "calc", DAYS, C, bold=True)
+        style(ws.cell(r, SO_, f'=IF({lo}{r}="","",IF({lo}{r}<=0,"OUT",'
+                              f'WORKDAY.INTL(AsOfDate,ROUNDUP({lo}{r},0),WeekendMask,Holidays)))'), "calc", DATE, C)
     for k in range(NMAT):
-        L_ = colL(3 + k)
+        L_ = colL(D0 + k)
         rng = f"{L_}{MAT0R}:{L_}{m_last}"
         code = f"Settings!$B${MAT0 + k}"
         has = f"COUNTIFS(SM_Site,$B{MAT0R},SM_Mat,{code},SM_Status,"
@@ -1007,10 +1038,10 @@ def build_dashboard(ws, sample):
             formula = "+".join(f"{has}{st})" for st in statuses) + ">0"
             ws.conditional_formatting.add(rng, FormulaRule(formula=[formula], fill=fill(bg),
                                                            font=Font(color=fg, bold=True), stopIfTrue=True))
-    pct_bars(ws, f"G{MAT0R}:J{m_last}")
-    status_cf(ws, f"K{MAT0R}:K{m_last}")
-    ws.conditional_formatting.add(f"O{MAT0R}:O{m_last}", CellIsRule(operator="greaterThan", formula=["0"],
-                                                                    font=Font(color="9E1F1F", bold=True)))
+    pct_bars(ws, f"{colL(P0)}{MAT0R}:{colL(P0 + NMAT - 1)}{m_last}")
+    status_cf(ws, f"{colL(W_)}{MAT0R}:{colL(W_)}{m_last}")
+    ws.conditional_formatting.add(f"{colL(SO_)}{MAT0R}:{colL(SO_)}{m_last}", CellIsRule(
+        operator="equal", formula=['"OUT"'], font=Font(color="9E1F1F", bold=True)))
 
     # 6-month outlook tables
     band(ws, FC_BAND, 2, LASTC, "6-MONTH FORECAST — selected site (declared m3/day × mix design × working days per month)")
@@ -1041,35 +1072,40 @@ def build_dashboard(ws, sample):
                                "per period, so that each period closes at the reorder level (lead time + safety stock "
                                "of usage). Details per site: Forecast sheet.").font = F(9, color=MUTED)
     ws.cell(FC_USE0 - 1, 18, "Chart series names").font = F(9, color=MUTED)
+    style(ws.cell(FC_CONC, 18, "Concrete (m3)"), "calc")
     for k in range(NMAT):
         r = FC_USE0 + k
         style(ws.cell(r, 18, f'=B{r}&" use ("&C{r}&")"'), "calc")
-    style(ws.cell(FC_END0, 18, f'="Still to order ("&C{FC_END0}&")"'), "calc")
+        r = FC_END0 + k
+        style(ws.cell(r, 18, f'="Still to order ("&C{r}&")"'), "calc")
 
-    # charts 3 & 4
+    # forecast charts: cement | aggregates, admixture | concrete
     band(ws, CH3_BAND, 2, LASTC, "FORECAST VISUALS — selected site")
     cats = Reference(ws, min_col=4, max_col=9, min_row=FC_IN_H)
-    bar = BarChart()
-    bar.type, bar.grouping, bar.gapWidth, bar.overlap = "col", "clustered", 60, -5
-    bar.title = f"{MATERIALS[0][1]} — Monthly Forecast Use vs Still to Order"
-    for row, rlab, color in [(FC_USE0, FC_USE0, "86B6EF"), (FC_END0, FC_END0, "1C5CAB")]:
-        bar.add_data(Reference(ws, min_col=4, max_col=9, min_row=row), from_rows=True, titles_from_data=False)
-        ser = bar.series[-1]
-        ser.tx = SeriesLabel(strRef=StrRef(f"'Dashboard'!$R${rlab}"))
-        ser.graphicalProperties.solidFill = color
-        ser.graphicalProperties.line.noFill = True
-    _labels(bar.series[0], "#,##0", "outEnd")
-    bar.set_categories(cats)
-    _axes(bar, "#,##0")
-    bar.y_axis.scaling.min = 0
-    bar.legend.position = "b"
-    bar.width, bar.height = 16.4, 7.6
-    ws.add_chart(bar, f"B{CH3_ROW}")
 
+    def use_vs_order(k, anchor, width):
+        ch = BarChart()
+        ch.type, ch.grouping, ch.gapWidth, ch.overlap = "col", "clustered", 60, -5
+        ch.title = f"{MATERIALS[k][1]} — Monthly Use vs Still to Order"
+        for row, color in [(FC_USE0 + k, "86B6EF"), (FC_END0 + k, "1C5CAB")]:
+            ch.add_data(Reference(ws, min_col=4, max_col=9, min_row=row), from_rows=True, titles_from_data=False)
+            ser = ch.series[-1]
+            ser.tx = SeriesLabel(strRef=StrRef(f"'Dashboard'!$R${row}"))
+            ser.graphicalProperties.solidFill = color
+            ser.graphicalProperties.line.noFill = True
+        _labels(ch.series[0], "#,##0", "outEnd")
+        ch.set_categories(cats)
+        _axes(ch, "#,##0")
+        ch.y_axis.scaling.min = 0
+        ch.legend.position = "b"
+        ch.width, ch.height = width, 7.6
+        ws.add_chart(ch, anchor)
+
+    use_vs_order(CEM_IDX, f"B{CH3_ROW}", 16.4)
     agg = BarChart()
     agg.type, agg.grouping, agg.gapWidth, agg.overlap = "col", "clustered", 60, -5
     agg.title = "Aggregates — Monthly Forecast Use"
-    for k in range(1, NMAT):
+    for k in AGG_IDX:
         r = FC_USE0 + k
         agg.add_data(Reference(ws, min_col=4, max_col=9, min_row=r), from_rows=True, titles_from_data=False)
         ser = agg.series[-1]
@@ -1082,6 +1118,22 @@ def build_dashboard(ws, sample):
     agg.legend.position = "b"
     agg.width, agg.height = 19.0, 7.6
     ws.add_chart(agg, f"H{CH3_ROW}")
+
+    use_vs_order(ADM_IDX, f"B{CH6_ROW}", 16.4)
+    conc = BarChart()
+    conc.type, conc.grouping, conc.gapWidth = "col", "clustered", 60
+    conc.title = "Concrete Production Forecast (m3 per month)"
+    conc.add_data(Reference(ws, min_col=4, max_col=9, min_row=FC_CONC), from_rows=True, titles_from_data=False)
+    conc.series[0].tx = SeriesLabel(strRef=StrRef(f"'Dashboard'!$R${FC_CONC}"))
+    conc.series[0].graphicalProperties.solidFill = "3A4654"
+    conc.series[0].graphicalProperties.line.noFill = True
+    _labels(conc.series[0], "#,##0", "outEnd")
+    conc.set_categories(cats)
+    _axes(conc, "#,##0", "m3")
+    conc.y_axis.scaling.min = 0
+    conc.legend = None
+    conc.width, conc.height = 19.0, 7.6
+    ws.add_chart(conc, f"H{CH6_ROW}")
 
     # last 14 days actual production
     band(ws, ACT_BAND, 2, LASTC, "DAYS REMAINING vs REORDER & CRITICAL LEVELS   ·   ACTUAL CONCRETE PRODUCTION, "
@@ -1132,41 +1184,40 @@ def build_dashboard(ws, sample):
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.print_area = f"A1:O{CH3_ROW + 16}"
-    for brk in (STORE_BAND - 1, MAT_BAND - 1, FC_BAND - 1):
+    ws.print_area = f"A1:O{CH6_ROW + 16}"
+    for brk in (STORE_BAND - 1, MAT_BAND - 1, FC_BAND - 1, CH3_BAND - 1):
         ws.row_breaks.append(Break(id=brk))
 
 
 def _storage_visual(ws):
-    """Cement silo + 3-compartment aggregate bin drawn with cells: each vessel fills (5 % bands) to its
-    % of storage capacity; dashed markers show the critical (lead time) and reorder levels."""
+    """Cement silo, 3-compartment aggregate bin and admixture tank drawn with cells: each vessel fills (5 % bands)
+    to its % of storage capacity; dashed markers show the critical (lead time) and reorder levels."""
     C = Alignment(horizontal="center", vertical="center")
     wall = Side(style="medium", color="3A4654")
     thin = Side(style="thin", color="3A4654")
     ground = Side(style="thin", color="9AA0A6")
-    band(ws, STORE_BAND, 2, 15, '="STORAGE LEVELS — CEMENT SILO & AGGREGATE BINS ("&IF($R$4="*","all sites combined",'
-                                '$C$4)&")   ·   fill = stock on hand ÷ max storage capacity"')
-
-    # silo roof (/\) and bin title
-    sl, sr = VESSEL_COLS[0]
-    ws.cell(V_LABEL, sl).border = Border(diagonal=wall, diagonalUp=True)
-    ws.cell(V_LABEL, sr).border = Border(diagonal=wall, diagonalDown=True)
-    bl, br = VESSEL_COLS[1][0], VESSEL_COLS[-1][1]
-    ws.merge_cells(start_row=V_LABEL, start_column=bl, end_row=V_LABEL, end_column=br)
-    c = ws.cell(V_LABEL, bl, "AGGREGATE BINS")
-    c.font, c.alignment = F(9, True, MUTED), Alignment(horizontal="center", vertical="bottom")
+    band(ws, STORE_BAND, 2, 15, '="STORAGE LEVELS — CEMENT SILO, AGGREGATE BINS & ADMIXTURE TANK ("&IF($R$4="*",'
+                                '"all sites combined",$C$4)&")   ·   fill = stock on hand ÷ max storage capacity"')
+    bins = [v for v in VESSELS if v[2] == "bin"]
+    if bins:   # title over the bin battery
+        ws.merge_cells(start_row=V_LABEL, start_column=bins[0][0], end_row=V_LABEL, end_column=bins[-1][1])
+        c = ws.cell(V_LABEL, bins[0][0], "AGGREGATE BINS")
+        c.font, c.alignment = F(9, True, MUTED), Alignment(horizontal="center", vertical="bottom")
 
     # vessel bodies: one merged cell per 5 % band, filled by conditional formatting
     bexpr = f"({V_BOT + 1}-ROW())"
-    for k, (cl, cr) in enumerate(VESSEL_COLS):
+    for k, (cl, cr, kind) in enumerate(VESSELS):
         hr = KPI0 + k
         for i, r in enumerate(range(V_TOP, V_BOT + 1)):
             b = NBANDS - i
             ws.merge_cells(start_row=r, start_column=cl, end_row=r, end_column=cr)
             c = ws.cell(r, cl, f'=IF({b}=$AB${hr},"– – critical level – –",IF({b}=$AC${hr},"– – reorder level – –",'
                                f'IF({b}=$AA${hr},TEXT($W${hr},"0%"),"")))')
-            c.font, c.alignment, c.fill, c.border = F(8, True, NAVY), C, fill("FFFFFF"), Border(left=wall)
-            ws.cell(r, cr).fill, ws.cell(r, cr).border = fill("FFFFFF"), Border(right=wall)
+            top = wall if (kind == "tank" and r == V_TOP) else None       # flat tank roof
+            bottom = wall if (kind == "tank" and r == V_BOT) else None    # flat tank floor
+            c.font, c.alignment, c.fill = F(8, True, NAVY), C, fill("FFFFFF")
+            c.border = Border(left=wall, top=top, bottom=bottom)
+            ws.cell(r, cr).fill, ws.cell(r, cr).border = fill("FFFFFF"), Border(right=wall, top=top, bottom=bottom)
         lvl, crit, reo, tint = f"$AA${hr}", f"$AB${hr}", f"$AC${hr}", fill(VESSEL_TINT[k])
         rng = f"{colL(cl)}{V_TOP}:{colL(cr)}{V_BOT}"
         for formula, bg, fg in [(f"AND({lvl}>={bexpr},{crit}={bexpr})", tint, "9E1F1F"),
@@ -1177,23 +1228,34 @@ def _storage_visual(ws):
             ws.conditional_formatting.add(rng, FormulaRule(formula=[formula], fill=bg, font=Font(color=fg, bold=True),
                                                            stopIfTrue=True))
 
-    # ground line, hopper cones (\/), discharge outlets and support legs
-    for ci in range(2, 13):
+    # roofs, hoppers / floors, outlets, legs and the ground line
+    for ci in range(2, 16):
         ws.cell(V_LEG, ci).border = Border(bottom=ground)
-    for k, (cl, cr) in enumerate(VESSEL_COLS):
-        outer = wall if k in (0, 1) else None
-        ws.cell(V_CONE, cl).border = Border(left=outer, diagonal=wall, diagonalDown=True)
-        ws.cell(V_CONE, cr).border = Border(right=wall, diagonal=wall, diagonalUp=True)
+    prev_right = None
+    for k, (cl, cr, kind) in enumerate(VESSELS):
+        outer = None if prev_right == cl - 1 else wall          # adjoining bins share one wall
+        prev_right = cr
+        if kind == "silo":       # conical roof /\
+            ws.cell(V_LABEL, cl).border = Border(diagonal=wall, diagonalUp=True)
+            ws.cell(V_LABEL, cr).border = Border(diagonal=wall, diagonalDown=True)
+        if kind == "tank":       # vent pipe on the flat roof
+            ws.cell(V_LABEL, cl).border = Border(right=thin)
+        if kind in ("silo", "bin"):   # hopper \/
+            ws.cell(V_CONE, cl).border = Border(left=outer, diagonal=wall, diagonalDown=True)
+            ws.cell(V_CONE, cr).border = Border(right=wall, diagonal=wall, diagonalUp=True)
+        else:                    # flat-bottom tank on a stand with a bottom valve
+            ws.cell(V_CONE, cl).border = Border(left=outer, right=thin)
+            ws.cell(V_CONE, cr).border = Border(right=wall)
         ws.cell(V_OUT, cl).border = Border(left=outer, right=thin)
         ws.cell(V_OUT, cr).border = Border(right=wall)
         ws.cell(V_LEG, cl).border = Border(left=outer, bottom=ground)
         ws.cell(V_LEG, cr).border = Border(right=wall, bottom=ground)
 
     # labels under each vessel
-    for k, (cl, cr) in enumerate(VESSEL_COLS):
+    suffix = {"silo": " SILO", "bin": " BIN", "tank": " TANK"}
+    for k, (cl, cr, kind) in enumerate(VESSELS):
         hr = KPI0 + k
-        suffix = " SILO" if k == 0 else " BIN"
-        rows = [(V_NAME, f'=UPPER(INDEX(Mat_Short,{k + 1}))&"{suffix}"', F(9, True, NAVY)),
+        rows = [(V_NAME, f'=UPPER(INDEX(Mat_Short,{k + 1}))&"{suffix[kind]}"', F(9, True, NAVY)),
                 (V_PCT, f'=IF(ISNUMBER(F{hr}),TEXT(F{hr},"0%")&" full",IF(M{hr}="NO DATA","not set up","no capacity set"))',
                  F(12, True, NAVY)),
                 (V_QTY, f'=TEXT(D{hr},"#,##0")&" / "&TEXT(E{hr},"#,##0")&" "&C{hr}', F(8, color=MUTED)),
@@ -1207,25 +1269,18 @@ def _storage_visual(ws):
         ws.cell(V_STATUS, cl).fill = fill("ECECEA")
         status_cf(ws, f"{colL(cl)}{V_STATUS}:{colL(cr)}{V_STATUS}")
 
-    # level scale (left) and how-to-read note (right)
+    # level scale and how-to-read line
     for b, text in {20: "100% —", 15: "75% —", 10: "50% —", 5: "25% —"}.items():
         c = ws.cell(V_TOP + NBANDS - b, 2, text)
         c.font, c.alignment = F(8, color=MUTED), Alignment(horizontal="right", vertical="top")
     c = ws.cell(V_BOT, 2, "0% —")
     c.font, c.alignment = F(8, color=MUTED), Alignment(horizontal="right", vertical="bottom")
-    ws.merge_cells(start_row=V_TOP, start_column=13, end_row=V_TOP, end_column=15)
-    c = ws.cell(V_TOP, 13, "HOW TO READ")
-    c.font = F(9, True, NAVY)
-    ws.merge_cells(start_row=V_TOP + 1, start_column=13, end_row=V_TOP + 13, end_column=15)
-    c = ws.cell(V_TOP + 1, 13, "Coloured fill = stock on hand as % of the max storage capacity in Current Inventory "
-                               "(each band = 5 %).\n\n"
-                               "– – critical level – –  = usage during the supplier lead time.\n\n"
-                               "– – reorder level – –  = usage during lead time + safety stock.\n\n"
-                               "Badge under each vessel = status (it also counts scheduled deliveries due before the "
-                               "stock-out).\n\n"
-                               "All Sites = combined stock and capacity of all sites; pick a site in the yellow cell "
-                               "to see one site.")
-    c.font, c.alignment = F(8, color="3A4654"), Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=V_NOTE, start_column=2, end_row=V_NOTE, end_column=15)
+    c = ws.cell(V_NOTE, 2, "How to read: coloured fill = stock on hand ÷ max storage capacity (5 % bands)   ·   "
+                           "– – critical level – – = usage during the supplier lead time   ·   – – reorder level – – = "
+                           "lead time + safety stock   ·   badge = status (counts scheduled deliveries)   ·   All Sites = "
+                           "combined stock and capacity")
+    c.font, c.alignment = F(8, color="3A4654"), Alignment(horizontal="center", vertical="center")
 
     ws.row_dimensions[V_LABEL].height = 26
     for r in range(V_TOP, V_BOT + 1):
@@ -1234,6 +1289,7 @@ def _storage_visual(ws):
     ws.row_dimensions[V_OUT].height = 10
     ws.row_dimensions[V_LEG].height = 12
     ws.row_dimensions[V_PCT].height = 18
+    ws.row_dimensions[V_NOTE].height = 20
 
 
 def _tile(ws, c1, c2, head, big, big_fmt, line1, line2, foot):
@@ -1241,11 +1297,12 @@ def _tile(ws, c1, c2, head, big, big_fmt, line1, line2, foot):
     C = Alignment(horizontal="center", vertical="center", wrap_text=True)
     rows = [(r0, head, F(10, True, "FFFFFF"), NAVY, None),
             (r0 + 1, big, F(22, True, NAVY), "FFFFFF", big_fmt),
-            (r0 + 3, line1, F(9, color="3A4654"), "FFFFFF", None),
-            (r0 + 4, line2, F(9, color="3A4654"), "FFFFFF", None),
+            (r0 + 3, line1, F(8.5, color="3A4654"), "FFFFFF", None),
+            (r0 + 4, line2, F(8.5, color="3A4654"), "FFFFFF", None),
             (r0 + 5, foot, F(10, True, NAVY), "ECECEA", None)]
     for r, value, font_, bg, fmt in rows:
-        ws.merge_cells(start_row=r, start_column=c1, end_row=r + (1 if r == r0 + 1 else 0), end_column=c2)
+        if c2 > c1 or r == r0 + 1:
+            ws.merge_cells(start_row=r, start_column=c1, end_row=r + (1 if r == r0 + 1 else 0), end_column=c2)
         c = ws.cell(r, c1, value)
         c.font, c.fill, c.alignment = font_, fill(bg), C
         if fmt:
@@ -1270,9 +1327,9 @@ def build_instructions(ws, sample):
     ws.sheet_view.showGridLines = False
     lines = [
         ("t", "Cement & Aggregates Inventory Monitoring — Housing Projects"),
-        ("p", "Tracks cement, sand and gravel (3/4\" and 3/8\") per housing site: current stock, consumption from the "
-              "m3 of concrete produced (via mix design), new deliveries, critical-stock alerts, a daily-to-monthly "
-              "consumption forecast and a visual dashboard with % of capacity and days remaining."),
+        ("p", "Tracks cement, sand, gravel (3/4\" and 3/8\") and concrete admixture per housing site: current stock, "
+              "consumption from the m3 of concrete produced (via mix design), new deliveries, critical-stock alerts, a "
+              "daily-to-monthly consumption forecast and a visual dashboard with % of capacity and days remaining."),
     ]
     if sample:
         lines += [("warn", "SAMPLE DATA: this copy is filled with illustrative figures for 8 sites (count date "
@@ -1283,12 +1340,12 @@ def build_instructions(ws, sample):
         ("h", "HOW TO USE"),
         ("p", "1. Settings — check the As-of Date (=TODAY() by default), working days per week/month, the materials "
               "(unit, supplier lead time, safety stock), the site list and (optional) non-working holidays."),
-        ("p", "2. Mix Design — enter your approved mix design: quantity of each material per 1 m3 of concrete, plus the "
-              "allowance (waste) %."),
+        ("p", "2. Mix Design — enter your approved mix design: quantity of each material per 1 m3 of concrete (cement "
+              "in bags, aggregates in m3, admixture in litres), plus the allowance (waste) %."),
         ("p", "3. Current Inventory (1) — one row per site and material: count date, beginning balance (physical "
               "count) and maximum storage capacity."),
         ("p", "4. Consumption Log (2) — every day, record the concrete produced: date, site, mix code and m3. The "
-              "cement, sand and gravel used are calculated from the mix design and deducted from stock."),
+              "cement, sand, gravel and admixture used are calculated from the mix design and deducted from stock."),
         ("p", "5. Deliveries (3) — record every delivery receipt as 'Received' (added to stock on its date). Also "
               "record purchase orders not yet delivered as 'Scheduled' with the expected date: they are not added to "
               "stock, but the monitor and the forecast count them as on order."),
@@ -1296,8 +1353,8 @@ def build_instructions(ws, sample):
               "daily usage, days remaining, critical dates and the monthly forecast."),
         ("p", "7. Stock Monitor (4), Forecast (5) and Dashboard (6) are automatic. On the Dashboard, pick a site (or "
               "All Sites) in the yellow cell."),
-        ("p", "Dashboard silo & bins: the cement silo and the 3 aggregate bins fill up to their % of max storage "
-              "capacity (bands of 5 %). '– – critical level – –' marks the stock needed for the supplier lead time and "
+        ("p", "Dashboard silo, bins & tank: the cement silo, the 3 aggregate bins and the admixture tank fill up to "
+              "their % of max storage capacity (bands of 5 %). '– – critical level – –' marks the stock needed for the supplier lead time and "
               "'– – reorder level – –' the stock for lead time + safety stock; the badge under each vessel is its status."),
         ("b", ""),
         ("h", "COLOUR LEGEND"),
@@ -1328,8 +1385,8 @@ def build_instructions(ws, sample):
         ("p", "CRITICAL — planning cover ≤ supplier lead time: stock will run out before a normal delivery can arrive "
               "(or the next delivery is due after the stock-out). Expedite."),
         ("p", "OUT OF STOCK — stock on hand is zero or negative (negative also means a delivery or a recount is missing)."),
-        ("p", "Reorder By / Critical On = the working day the planning cover reaches lead time + safety stock / lead "
-              "time. 'NOW' = already reached."),
+        ("p", "Reorder By = last working day to place the order before the planning cover falls to lead time + safety "
+              "stock. Critical On = the working day the cover falls to the lead time. 'NOW' = already reached."),
         ("p", "Suggested Order Qty = quantity that refills storage to its maximum capacity when the order arrives "
               "(after the usage during the lead time and counting what is already on order)."),
         ("p", "Dashboard 'All Sites' view: stock, capacity and usage are totals; dates are the earliest site; the status "
@@ -1348,9 +1405,13 @@ def build_instructions(ws, sample):
               "0.50 m3 sand and 1.00 m3 gravel: Class AA (1:1.5:3) = 12 bags, Class A (1:2:4) = 9 bags, Class C (1:3:6) "
               "= 6 bags (as tabulated in common estimating references, e.g. M. Fajardo, Simplified Construction "
               "Estimate). Replace them with your approved, lab-tested mix design."),
-        ("p", "Allowance 3% (precast) / 5% (cast in place), lead time 3 working days for cement and 2 for aggregates, "
-              "safety stock 2 working days, 6 working days per week (Sunday off) and 26 per month are starting "
-              "assumptions. No holidays are entered by default, which is the conservative choice."),
+        ("p", "Admixture default dosage: 4.0 L/m3 for the precast mixes and 2.5 L/m3 for footings (typical "
+              "superplasticizer / water-reducer range); none for lean concrete. Use the supplier's recommended dosage "
+              "from your trial mixes."),
+        ("p", "Allowance 3% (precast) / 5% (cast in place), lead time 3 working days for cement, 2 for aggregates and 5 "
+              "for admixture, safety stock 2 working days (3 for admixture), 6 working days per week (Sunday off) and "
+              "26 per month are starting assumptions. No holidays are entered by default, which is the conservative "
+              "choice."),
         ("b", ""),
         ("h", "CAPACITY"),
         ("p", f"Room for {CI1 - CI0 + 1} site/material rows, {CON1 - CON0 + 1:,} consumption rows, "
@@ -1396,7 +1457,7 @@ SAMPLE_PLAN = {
     "Batulao Impression": [("MD-01", 8.0), ("MD-03", 3.0)],
 }
 ELEMENT = {"MD-01": "Wall panels", "MD-02": "Slabs / beams", "MD-03": "Footings", "MD-04": "Lean concrete"}
-TRUCK = {"CEM": 250, "SAND": 16, "G34": 16, "G38": 16}   # bags (10 t) / m3 per truckload
+TRUCK = {"CEM": 250, "SAND": 16, "G34": 16, "G38": 16, "ADM": 200}   # bags (10 t) / m3 per truckload / L per drum
 # Disruptions that create REORDER / CRITICAL / OUT OF STOCK examples:
 #   ("delay", from date, extra working days) - supplier delivers late
 #   ("stop", from date)                      - no new order placed yet
@@ -1406,6 +1467,10 @@ DISRUPT = {
     ("Tayabas", "SAND"): ("delay", dt.date(2026, 10, 15), 14),
     ("The Cove Lipa", "G38"): ("stop", dt.date(2026, 10, 24)),
     ("Sights Bay", "CEM"): ("stop", dt.date(2026, 10, 26)),
+    ("The Cove Lipa", "ADM"): ("stop", dt.date(2026, 10, 19)),
+    ("Batulao Impression", "CEM"): ("stop", dt.date(2026, 10, 24)),
+    ("Batulao Parkhomes", "ADM"): ("stop", dt.date(2026, 10, 27)),
+    ("Naic", "ADM"): ("delay", dt.date(2026, 10, 26), 3),
     ("Calauan (Alora+Amani)", "CEM"): ("stop", dt.date(2026, 10, 29)),
     ("Batulao Impression", "SAND"): ("delay", dt.date(2026, 10, 27), 2),
 }
@@ -1413,12 +1478,11 @@ RECOUNT = {("Tayabas", "SAND"): (dt.date(2026, 10, 31), 0, "Recount 31-Oct: stoc
 
 
 def simulate_sample(seed=20261031):
-    rnd = random.Random(seed)
     start, end = dt.date(2026, 10, 1), dt.date(2026, 10, 31)
     days = [start + dt.timedelta(n) for n in range((end - start).days + 1)]
     work = [d for d in days if d.weekday() != 6]
     mixes = {m[0]: m for m in MIXES}
-    eff = {code: [m[3 + k] * (1 + m[7]) for k in range(NMAT)] for code, m in mixes.items()}
+    eff = {code: [m[3 + k] * (1 + m[3 + NMAT]) for k in range(NMAT)] for code, m in mixes.items()}
     codes = [m[0] for m in MATERIALS]
     lead = {m[0]: m[4] for m in MATERIALS}
     safety = {m[0]: m[5] for m in MATERIALS}
@@ -1433,14 +1497,17 @@ def simulate_sample(seed=20261031):
     inventory, logs, deliveries, plan_rows = [], [], [], []
     dr = 41200
     for site, plan in SAMPLE_PLAN.items():
+        rnd = random.Random(f"{seed}|{site}")          # one stream per site: adding materials keeps the sample stable
         rate = {c: sum(v * eff[mx][k] for mx, v in plan) for k, c in enumerate(codes)}
         used = [c for c in codes if rate[c] > 0]
         cap, stock, orders = {}, {}, []
         for c in used:
-            raw = rate[c] * rnd.uniform(10, 13)
-            step = 100 if c == "CEM" else 10
+            rc = random.Random(f"{seed}|{site}|{c}")
+            raw = rate[c] * rc.uniform(10, 13)
+            step = 100 if c in ("CEM", "ADM") else 10
             cap[c] = max(TRUCK[c] * 3, math.ceil(raw / step) * step)
-            stock[c] = round(cap[c] * rnd.uniform(0.45, 0.8) / (10 if c == "CEM" else 1)) * (10 if c == "CEM" else 1)
+            unit = 10 if c in ("CEM", "ADM") else 1
+            stock[c] = round(cap[c] * rc.uniform(0.45, 0.8) / unit) * unit
             inventory.append((site, c, start, stock[c], cap[c]))
         for mx, v in plan:
             plan_rows.append((site, mx, v))
@@ -1476,7 +1543,7 @@ def simulate_sample(seed=20261031):
                     if qty <= 0:
                         continue
                     arrive = add_workdays(d, int(lead[c]))
-                    note = f"{qty // TRUCK[c]} truckload(s)"
+                    note = f"{qty // TRUCK[c]} drum(s) x 200 L" if c == "ADM" else f"{qty // TRUCK[c]} truckload(s)"
                     if dis and dis[0] == "delay" and d >= dis[1]:
                         arrive = add_workdays(arrive, dis[2])
                         note += " – supplier delay"
@@ -1487,7 +1554,8 @@ def simulate_sample(seed=20261031):
     out = []
     for d, site, c, qty, status, note in deliveries:
         dr += 1
-        supplier = "Cement Supplier A" if c == "CEM" else ("Sand Supplier B" if c == "SAND" else "Aggregates Supplier C")
+        supplier = {"CEM": "Cement Supplier A", "SAND": "Sand Supplier B", "ADM": "Admixture Supplier D"}.get(
+            c, "Aggregates Supplier C")
         out.append((d, site, c, qty, status, supplier, f"DR-{dr:06d}" if status == "Received" else "PO pending", note))
     logs.sort(key=lambda x: (x[0], SITES.index(x[1])))
     return inventory, logs, out, plan_rows
@@ -1506,7 +1574,7 @@ def write_sample(wb):
     con = wb["Consumption Log"]
     for i, (d, site, mx, vol, note) in enumerate(logs):
         r = CON0 + i
-        con.cell(r, 1, d); con.cell(r, 2, site); con.cell(r, 3, mx); con.cell(r, 4, vol); con.cell(r, 10, note)
+        con.cell(r, 1, d); con.cell(r, 2, site); con.cell(r, 3, mx); con.cell(r, 4, vol); con.cell(r, CON_REM, note)
     de = wb["Deliveries"]
     for i, (d, site, c, qty, status, supplier, ref, note) in enumerate(deliveries):
         r = DEL0 + i
@@ -1515,7 +1583,7 @@ def write_sample(wb):
     pp = wb["Production Plan"]
     for i, (site, mx, v) in enumerate(plan_rows):
         r = PP0 + i
-        pp.cell(r, 1, site); pp.cell(r, 2, mx); pp.cell(r, 4, v); pp.cell(r, 15, "Sample plan")
+        pp.cell(r, 1, site); pp.cell(r, 2, mx); pp.cell(r, 4, v); pp.cell(r, PP_REM, "Sample plan")
     return len(inventory), len(logs), len(deliveries), len(plan_rows)
 
 

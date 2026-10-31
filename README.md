@@ -6,7 +6,7 @@ This repository holds the following for **Precast Construction Solutions by Mega
 |---|---|
 | [`cmms/`](cmms/) | **Maintenance management system (CMMS)** for the central precast factory and the housing project sites. It covers equipment, PMS, breakdowns, work orders, spare parts, downtime, costs and KPIs. |
 | `Housing Database.xlsx` | Data workbook for the FTB Supply & Production dashboard (project overview and monthly history per site). |
-| [`materials-inventory/`](materials-inventory/) | **Cement & aggregates inventory monitoring (Excel)** per housing site: current stock, consumption from m3 produced × mix design, deliveries, critical-stock alerts (days remaining, stock-out date), 6-month consumption forecast and a dashboard. |
+| [`materials-inventory/`](materials-inventory/) | **Cement, aggregates & admixture inventory monitoring (Excel)** per housing site: current stock, consumption from m3 produced × mix design, deliveries, critical-stock alerts (days remaining, stock-out date), 6-month consumption forecast and a dashboard with silo, bin and tank levels. |
 
 ## CMMS at a glance
 
