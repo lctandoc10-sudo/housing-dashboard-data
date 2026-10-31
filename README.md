@@ -1,11 +1,12 @@
 # Housing Dashboard Data & Precast CMMS
 
-This repository holds two things for **Precast Construction Solutions by Megawide**:
+This repository holds the following for **Precast Construction Solutions by Megawide**:
 
 | Item | What it is |
 |---|---|
 | [`cmms/`](cmms/) | **Maintenance management system (CMMS)** for the central precast factory and the housing project sites. It covers equipment, PMS, breakdowns, work orders, spare parts, downtime, costs and KPIs. |
 | `Housing Database.xlsx` | Data workbook for the FTB Supply & Production dashboard (project overview and monthly history per site). |
+| [`materials-inventory/`](materials-inventory/) | **Cement & aggregates inventory monitoring (Excel)** per housing site: current stock, consumption from m3 produced × mix design, deliveries, critical-stock alerts (days remaining, stock-out date), 6-month consumption forecast and a dashboard. |
 
 ## CMMS at a glance
 
