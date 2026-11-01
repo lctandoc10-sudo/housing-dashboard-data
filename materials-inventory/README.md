@@ -4,7 +4,7 @@ Excel workbook that tracks cement, sand, gravel (3/4" and 3/8") and concrete adm
 
 | File | Use it for |
 |---|---|
-| `Cement and Aggregates Inventory.xlsx` | **Real data.** Blank template. The 8 housing sites and 4 materials are already listed. |
+| `Cement and Aggregates Inventory.xlsx` | **Real data.** Blank template. The 8 housing sites and 5 materials (cement, sand, gravel 3/4", gravel 3/8", admixture) are already listed. |
 | `Cement and Aggregates Inventory - Sample Data.xlsx` | **Demo.** The same workbook filled with illustrative October 2026 data, so every status and chart has something to show. The figures are made up. |
 | `build_workbook.py` | Generator for both files (`python3 build_workbook.py`). |
 
