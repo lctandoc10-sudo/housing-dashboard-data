@@ -8,6 +8,7 @@ This repository holds two things for **Precast Construction Solutions by Megawid
 | `Housing Database.xlsx` | Data workbook for the FTB Supply & Production dashboard (project overview and monthly history per site). |
 | [`schedules/The Cove Demob & Transfer Schedule.xlsx`](schedules/) | Gantt chart, S-curve, monthly block-lot sequence, engineering drawing register, considerations checklist and transfer list for the demob of The Cove Lipa installation and transfer to San Pablo East (Calista 2.0). |
 | `schedules/The Cove Demob & Transfer Schedule - Simplified.xlsx` | One-page version: 19 key activities with Gantt bars, an S-curve and a 14-point checklist. |
+| `schedules/PCS Gantt Schedule Template.xlsx` | Blank reusable PCS Gantt template (40 activities, 16-week timeline, S-curve, checklist, logo and sign-off block). Regenerate with a logo: `python schedules/tools/build_template.py OUT.xlsx logo.png`. |
 
 ## CMMS at a glance
 
