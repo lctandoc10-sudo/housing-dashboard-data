@@ -10,6 +10,7 @@ const assetStatus = require('../services/assetStatus');
 const notify = require('../services/notify');
 const pms = require('../services/pms');
 const inventory = require('../services/inventory');
+const progress = require('../services/progress');
 const { h, need, paging } = require('./util');
 const { nowIso } = require('../time');
 const { bad, notFound, conflict, forbidden } = require('../errors');
@@ -74,6 +75,7 @@ router.get('/meta', h(req => {
       FROM users u WHERE u.is_active = 1 AND EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_code = u.role_code AND rp.permission = 'wo.execute') ORDER BY u.full_name`).all(),
     pms_frequencies: pms.FREQUENCIES,
     cost_categories: ['PARTS', 'INTERNAL_LABOR', 'EXTERNAL_LABOR', 'THIRD_PARTY_SERVICE', 'RENTAL', 'OTHER'],
+    progress: { fields: progress.FIELDS.map(({ key, label, int }) => ({ key, label, int })), weather: progress.WEATHER, edit_days: settings.get('progress_edit_days'), max_photos: settings.get('progress_max_photos') },
     settings: { pms_tolerance_days: settings.get('pms_tolerance_days'), availability_include_planned: settings.get('availability_include_planned'), require_independent_verification: settings.get('require_independent_verification') },
   };
 }));

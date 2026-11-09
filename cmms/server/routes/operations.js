@@ -2,8 +2,6 @@
 // Availability/downtime, inventory, costs, KPIs, reports, workload, attachments, import.
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const rbac = require('../rbac');
@@ -14,6 +12,8 @@ const costs = require('../services/costs');
 const reports = require('../services/reports');
 const importer = require('../services/importer');
 const wos = require('../services/workorders');
+const files = require('../services/files');
+const progress = require('../services/progress');
 const { h, need, paging, sortBy, stripCost, csvList } = require('./util');
 const { nowIso, toIso, now, today, addDays } = require('../time');
 const { bad, notFound, forbidden, conflict } = require('../errors');
@@ -283,13 +283,6 @@ router.get('/team/workload', need('team.view', 'wo.assign'), h(req => {
 }));
 
 // ---------------------------------------------------------------- attachments
-const UPLOAD_DIR = () => process.env.CMMS_UPLOAD_DIR || path.join(process.cwd(), 'data', 'uploads');
-const ALLOWED = {
-  'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/webp': ['.webp'], 'image/heic': ['.heic'], 'application/pdf': ['.pdf'],
-  'video/mp4': ['.mp4'], 'video/quicktime': ['.mov'],
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-};
-const MAGIC = { '.jpg': [0xff, 0xd8, 0xff], '.jpeg': [0xff, 0xd8, 0xff], '.png': [0x89, 0x50, 0x4e, 0x47], '.pdf': [0x25, 0x50, 0x44, 0x46], '.xlsx': [0x50, 0x4b], '.docx': [0x50, 0x4b], '.webp': [0x52, 0x49, 0x46, 0x46] };
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
@@ -308,6 +301,8 @@ function checkEntityAccess(user, type, id, write) {
     rbac.requireSite(user, i.site_id); rbac.require(user, write ? 'investigation.manage' : 'wo.view');
   } else if (type === 'part') {
     rbac.require(user, write ? 'inventory.manage_parts' : 'inventory.view');
+  } else if (type === 'progress_report') {
+    progress.checkAccess(user, id, write);
   } else throw bad('Unsupported attachment type');
 }
 
@@ -315,20 +310,10 @@ router.post('/attachments', upload.single('file'), h(req => {
   const f = req.file;
   if (!f) throw bad('No file uploaded');
   const type = req.body.entity_type; const id = Number(req.body.entity_id);
+  // progress photos go through POST /progress-reports/:id/photos (images only, de-duplicated)
+  if (type === 'progress_report') throw bad('Add progress photos from the progress report screen');
   checkEntityAccess(req.user, type, id, true);
-  const ext = path.extname(f.originalname || '').toLowerCase();
-  const allowedExt = ALLOWED[f.mimetype];
-  if (!allowedExt || !allowedExt.includes(ext)) throw bad('File type not allowed (photos, videos, PDF, XLSX, DOCX only)');
-  const magic = MAGIC[ext];
-  if (magic && !magic.every((b, i) => f.buffer[i] === b)) throw bad('File content does not match its type');
-  const stored = crypto.randomBytes(16).toString('hex') + ext;
-  fs.mkdirSync(UPLOAD_DIR(), { recursive: true });
-  fs.writeFileSync(path.join(UPLOAD_DIR(), stored), f.buffer, { flag: 'wx' });
-  const safeName = path.basename(f.originalname).replace(/[^\w.\- ()]/g, '_').slice(0, 150);
-  const r = db.get().prepare(`INSERT INTO attachments (entity_type, entity_id, filename, stored_name, mime_type, size_bytes, caption, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(type, id, safeName, stored, f.mimetype, f.size, req.body.caption || null, req.user.id, nowIso());
-  audit.log(req.ctx, 'UPLOAD', type, id, `${safeName} (${f.size} bytes)`);
-  return { id: r.lastInsertRowid };
+  return { id: files.store(req.ctx, type, id, f, req.body.caption) };
 }));
 router.get('/attachments/:id', h((req, res) => {
   const a = db.get().prepare('SELECT * FROM attachments WHERE id = ? AND is_deleted = 0').get(req.params.id);
@@ -339,13 +324,14 @@ router.get('/attachments/:id', h((req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'");
   res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${a.filename.replace(/"/g, '')}"`);
-  res.sendFile(path.join(UPLOAD_DIR(), a.stored_name));
+  res.sendFile(path.join(files.UPLOAD_DIR(), a.stored_name));
 }));
 router.post('/attachments/:id/delete', h(req => {
   const a = db.get().prepare('SELECT * FROM attachments WHERE id = ? AND is_deleted = 0').get(req.params.id);
   if (!a) throw notFound('Attachment');
   checkEntityAccess(req.user, a.entity_type, a.entity_id, true);
-  if (a.uploaded_by !== req.user.id && !rbac.can(req.user, 'wo.assign') && !rbac.can(req.user, 'admin.master')) throw forbidden();
+  const manager = a.entity_type === 'progress_report' ? rbac.can(req.user, 'progress.manage') : rbac.can(req.user, 'wo.assign');
+  if (a.uploaded_by !== req.user.id && !manager && !rbac.can(req.user, 'admin.master')) throw forbidden();
   db.get().prepare('UPDATE attachments SET is_deleted = 1 WHERE id = ?').run(a.id); // soft delete; file retained for audit
   audit.log(req.ctx, 'DELETE', 'attachment', a.id, a.filename);
   return { ok: true };

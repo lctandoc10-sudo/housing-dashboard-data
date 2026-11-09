@@ -12,6 +12,7 @@ This repository holds two things for **Precast Construction Solutions by Megawid
 - **Equipment registry:** QR labels, status, transfers between sites, full history
 - **Preventive maintenance (PMS):** by calendar, operating hours or km, with automatic work orders, checklists and compliance tracking
 - **Breakdowns:** mobile reporting and a corrective workflow; a job is closed only after independent verification
+- **Site progress reports:** taken on the phone with camera photos; saved on the phone and uploaded automatically (also after losing signal); monthly totals export in the workbook's *Monthly History* layout
 - **Spare parts:** inventory, purchase requests, maintenance costs in PHP
 - **Dashboard:** availability, MTTR, MTBF and backlog; every figure traceable to its records
 - **Access:** user roles, site-based access, password management, audit log

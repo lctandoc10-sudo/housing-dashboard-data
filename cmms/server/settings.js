@@ -23,6 +23,8 @@ const DEFAULTS = {
   email_enabled: [false, 'Send notifications by e-mail (requires SMTP configuration on the server)'],
   session_hours: [12, 'Login session lifetime in hours'],
   audit_retention_days: [3650, 'Audit log retention (records are never auto-deleted below this age)'],
+  progress_edit_days: [7, 'Days after submission during which the author can still correct or void their own progress report'],
+  progress_max_photos: [30, 'Maximum number of photos on one progress report'],
   pms_horizon_days: [90, 'Look-ahead horizon used by the PMS calendar forecast'],
 };
 

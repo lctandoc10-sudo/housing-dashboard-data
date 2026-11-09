@@ -40,6 +40,7 @@ function createApp() {
   api.use(core.router);
   api.use(require('./routes/maintenance'));
   api.use(require('./routes/operations'));
+  api.use(require('./routes/progress'));
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
 

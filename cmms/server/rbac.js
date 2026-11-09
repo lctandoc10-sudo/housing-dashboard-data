@@ -51,6 +51,15 @@ const PERMISSIONS = {
   'report.view': 'View reports',
   'report.export': 'Export reports',
   'team.view': 'View technician workload',
+  'progress.submit': 'Submit site progress reports with photos (and see your own reports)',
+  'progress.view': 'View all progress reports and monthly progress summaries in permitted sites',
+  'progress.manage': 'Correct or void any progress report',
+};
+
+// Permissions introduced after the first release. Existing databases receive each batch once,
+// for the roles below that hold them by default; administrators' later changes are kept.
+const ADDED_PERMISSIONS = {
+  'progress-v1': ['progress.submit', 'progress.view', 'progress.manage'],
 };
 
 const ALL = Object.keys(PERMISSIONS);
@@ -65,18 +74,21 @@ const ROLES = {
     'pms.view', 'pms.plan', 'pms.reschedule', 'pms.mark_missed', 'breakdown.report',
     'wo.view', 'wo.create', 'wo.assess', 'wo.assign', 'wo.execute', 'wo.verify', 'wo.close', 'wo.cancel', 'investigation.manage',
     'downtime.view', 'downtime.manage', 'inventory.view', 'inventory.reserve', 'inventory.issue', 'inventory.adjust', 'pr.create',
-    'cost.view', 'cost.manage', 'kpi.view', 'report.view', 'report.export', 'team.view', 'audit.view']],
+    'cost.view', 'cost.manage', 'kpi.view', 'report.view', 'report.export', 'team.view', 'audit.view', 'progress.view']],
   TECHNICIAN: ['Maintenance Technician', 'Executes assigned PMS and corrective work', [
     'asset.view', 'asset.meter', 'pms.view', 'breakdown.report', 'wo.view_assigned', 'wo.execute', 'downtime.view', 'inventory.view', 'pr.create']],
   STOREKEEPER: ['Storekeeper / Inventory Controller', 'Receives, issues and transfers spare parts', [
     'asset.view', 'wo.view', 'inventory.view', 'inventory.manage_parts', 'inventory.receive', 'inventory.issue', 'inventory.transfer',
     'inventory.adjust', 'inventory.reserve', 'pr.create', 'report.view', 'report.export', 'downtime.view']],
   CUSTODIAN: ['Project Supervisor / Equipment Custodian', 'Reports breakdowns, confirms operational impact and availability', [
-    'asset.view', 'asset.status', 'asset.meter', 'breakdown.report', 'wo.view', 'downtime.view', 'pms.view', 'kpi.view', 'report.view']],
+    'asset.view', 'asset.status', 'asset.meter', 'breakdown.report', 'wo.view', 'downtime.view', 'pms.view', 'kpi.view', 'report.view',
+    'progress.submit', 'progress.view']],
   OPERATIONS: ['Production / Logistics User', 'Views equipment availability and reports defects', [
-    'asset.view', 'breakdown.report', 'wo.view_assigned', 'downtime.view']],
+    'asset.view', 'breakdown.report', 'wo.view_assigned', 'downtime.view', 'progress.submit']],
   VIEWER: ['Management Viewer', 'Read-only access to dashboards, KPIs, reports and approved records', [
-    'asset.view', 'pms.view', 'wo.view', 'downtime.view', 'inventory.view', 'cost.view', 'kpi.view', 'report.view', 'report.export', 'team.view']],
+    'asset.view', 'pms.view', 'wo.view', 'downtime.view', 'inventory.view', 'cost.view', 'kpi.view', 'report.view', 'report.export', 'team.view', 'progress.view']],
+  PROGRESS: ['Site Engineer / Progress Reporter', 'Submits daily site progress reports with photos from the field', [
+    'progress.submit', 'progress.view']],
 };
 
 function initRoles() {
@@ -90,6 +102,11 @@ function initRoles() {
   }
   // administrators always hold every permission, including ones added in later versions
   for (const p of ALL) insPerm.run('ADMIN', p);
+  for (const [key, perms] of Object.entries(ADDED_PERMISSIONS)) {
+    if (d.prepare('SELECT 1 FROM rbac_migrations WHERE key = ?').get(key)) continue;
+    for (const [code, [, , defaults]] of Object.entries(ROLES)) for (const p of perms) if (defaults.includes(p)) insPerm.run(code, p);
+    d.prepare('INSERT INTO rbac_migrations (key, applied_at) VALUES (?, ?)').run(key, new Date().toISOString());
+  }
 }
 
 function permissionsFor(roleCode) {

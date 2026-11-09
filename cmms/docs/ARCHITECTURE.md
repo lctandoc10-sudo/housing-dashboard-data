@@ -114,6 +114,7 @@ Document numbering: `PREFIX-YYYY-NNNNN`, restarting each year.
 | `IT` | Inventory transaction |
 | `PR` | Purchase request |
 | `FI` | Failure investigation |
+| `SP` | Site progress report |
 
 ## 3. Screens
 
@@ -137,6 +138,7 @@ Document numbering: `PREFIX-YYYY-NNNNN`, restarting each year.
 | Spare parts, transactions, adjustments; part detail | `#/inventory`, `#/inventory/parts/:id` | storekeepers, supervisors |
 | Purchase requests | `#/prs` | storekeepers, managers |
 | Maintenance cost dashboard and entries | `#/costs` | managers, supervisors, viewers |
+| Site progress: new report with camera (phone), register, detail with photos, monthly summary and export, upload queue | `#/progress/new`, `#/progress`, `#/progress/:id`, `#/progress/monthly`, `#/progress/outbox` | site engineers, custodians, production, managers, viewers |
 | Reports and exports (CSV, XLSX, print to PDF) | `#/reports`, `#/reports/:id` | all with `report.view` |
 | Notifications | `#/notifications` | all |
 | Administration: users & passwords, roles, sites & master data, checklists, settings & escalation, workflow, audit log, Excel import | `#/admin/*`, `#/import` | administrators |
@@ -255,6 +257,21 @@ Plan (per category or asset; calendar / hours / km; checklist; parts)
   - Entries with a duplicate reference on the same WO raise a warning.
 - **Approval.** System-generated costs are approved when the WO is closed. Manual entries are approved by someone other than the person who recorded them (`cost.approve`). The finance export contains approved actual costs only.
 
+### 4.6 Site progress reports
+
+- **Data.** `progress_reports` holds one report per submission. It has site, date, area, weather, the quantities of the FTB workbook's Monthly History, the narrative (work done, issues, next plan) and optional GPS. `progress_photos` links photos (ordinary `attachments` rows) to a report, with the photo's taken time and an idempotency key.
+- **Phone upload.** `public/js/outbox.js` stores the report and the resized photos in IndexedDB, then sends the report (`POST /progress-reports`, keyed by `client_request_id`) and each photo (`POST /progress-reports/:id/photos`, keyed by `client_photo_id`).
+  - Network and server errors leave the item queued and it is retried.
+  - Validation errors (400/403/409) put it in "needs attention" for the user to decide.
+- **Rules.**
+  - The date cannot be in the future.
+  - Quantities are ≥ 0, and counts are whole numbers.
+  - Manhours cannot exceed manpower × 24, and manhours with zero manpower are refused.
+  - A second report for the same site and date requires confirmation.
+  - Photos must be images whose content matches the type, up to `progress_max_photos` per report.
+  - Void requires a reason. Reports cannot be deleted (trigger).
+- **Monthly roll-up.** Sums per site and month, except manpower: each day's reports are added up, then averaged over the days that recorded it. Void reports are excluded. The XLSX export follows the *Monthly History* column order and workbook site names. Calauan, Gentri and Tayabas are mapped to the workbook spelling in `services/progress.js`.
+
 ## 5. KPI formulas and validation rules
 
 Each KPI is shown with its numerator, denominator, period and exclusions when you open it on the dashboard. A KPI with no valid denominator shows **"No data"**, never 0 % or 100 %.
@@ -336,7 +353,7 @@ What has been built covers the brief's phases 1–5, as working end-to-end flows
    - load test with realistic concurrency
 2. **E-mail/SMS channel:** an SMTP or SMS sender that drains `notification_outbox` (records are queued already; nothing is sent today).
 3. **PostgreSQL option** for multi-server or high-concurrency deployment. The data layer is thin and the SQL is standard.
-4. **Offline-capable breakdown form and job updates** (service worker, local queue, conflict handling). Deliberately not claimed or partly implemented today.
+4. **Offline-capable breakdown form and job updates.** Progress reports already have a local queue (`public/js/outbox.js`); breakdowns and job updates could reuse it. A service worker would also let the app open without signal.
 5. **Operating calendars per asset:** shift patterns, holidays, and per-asset scheduled hours that override the site schedule.
 6. **Budget module:** annual maintenance budgets per site and category, with variance against actual costs.
 7. **PDF generation on the server** for WO completion sheets and monthly reports. Today PDF output uses the browser's print to PDF.

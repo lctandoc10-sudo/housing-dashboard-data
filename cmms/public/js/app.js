@@ -9,6 +9,8 @@ import * as ops from './views/operations.js';
 import * as inv from './views/inventory.js';
 import * as rep from './views/reports.js';
 import * as admin from './views/admin.js';
+import * as progress from './views/progress.js';
+import * as outbox from './outbox.js';
 
 const NAV = [
   ['Overview', [['#/dashboard', 'Dashboard', () => can('kpi.view')], ['#/availability', 'Availability board', () => can('downtime.view')], ['#/notifications', 'Notifications', () => true]]],
@@ -21,6 +23,12 @@ const NAV = [
     ['#/breakdowns', 'Breakdown register', () => can('wo.view')],
     ['#/investigations', 'Failure investigations', () => can('wo.view')],
     ['#/team', 'Technician workload', () => canAny('team.view', 'wo.assign')],
+  ]],
+  ['Site progress', [
+    ['#/progress/new', 'New progress report', () => can('progress.submit')],
+    ['#/progress', 'Progress reports', () => canAny('progress.view', 'progress.submit')],
+    ['#/progress/monthly', 'Monthly progress summary', () => can('progress.view')],
+    ['#/progress/outbox', 'Upload queue', () => can('progress.submit')],
   ]],
   ['Assets', [['#/assets', 'Equipment registry', () => can('asset.view')], ['#/scan', 'Scan QR code', () => can('asset.view')]]],
   ['Stores & costs', [['#/inventory', 'Spare parts', () => can('inventory.view')], ['#/prs', 'Purchase requests', () => canAny('inventory.view', 'pr.create')], ['#/costs', 'Maintenance costs', () => can('cost.view')]]],
@@ -64,6 +72,11 @@ const ROUTES = [
   [/^\/costs$/, inv.costs],
   [/^\/reports$/, rep.list],
   [/^\/reports\/(\w+)$/, rep.report],
+  [/^\/progress$/, progress.list],
+  [/^\/progress\/new$/, progress.create],
+  [/^\/progress\/monthly$/, progress.monthly],
+  [/^\/progress\/outbox$/, progress.queue],
+  [/^\/progress\/(\d+)$/, progress.detail],
   [/^\/import$/, admin.importer],
   [/^\/admin\/users$/, admin.users],
   [/^\/admin\/roles$/, admin.roles],
@@ -83,10 +96,13 @@ function renderNav() {
   }));
   $('#userChip').textContent = state.me.full_name;
   $('#quickReport').hidden = !can('breakdown.report');
+  $('#quickProgress').hidden = !can('progress.submit');
 }
 function highlightNav() {
   const cur = location.hash.split('?')[0];
-  for (const a of document.querySelectorAll('#sidenav a')) a.classList.toggle('active', cur === a.getAttribute('href') || (cur.startsWith(a.getAttribute('href') + '/') && a.getAttribute('href') !== '#/pms'));
+  const links = [...document.querySelectorAll('#sidenav a')];
+  const exact = links.some(a => a.getAttribute('href') === cur);
+  for (const a of links) a.classList.toggle('active', cur === a.getAttribute('href') || (!exact && cur.startsWith(a.getAttribute('href') + '/') && a.getAttribute('href') !== '#/pms'));
 }
 export async function refreshBell() {
   if (!state.me) return;
@@ -105,6 +121,23 @@ export async function afterLogin() {
   renderNav();
   showChrome(true);
   refreshBell();
+  startUploads();
+}
+// progress reports saved on this phone upload in the background whenever there is signal
+async function refreshQueue() {
+  const items = state.me ? await outbox.mine().catch(() => []) : [];
+  const chip = $('#queueChip');
+  chip.hidden = !items.length;
+  chip.classList.toggle('attention', items.some(i => i.state === 'attention'));
+  $('#queueCount').textContent = items.length;
+  chip.title = `${items.length} progress report(s) waiting to upload from this phone`;
+}
+function startUploads() {
+  if (!can('progress.submit')) return;
+  outbox.onChange(refreshQueue);
+  outbox.start();
+  outbox.sync();
+  refreshQueue();
 }
 function showChrome(on) {
   $('#topbar').hidden = !on; $('#sidenav').hidden = !on;
@@ -114,6 +147,7 @@ function defaultRoute() {
   if (can('kpi.view')) return '#/dashboard';
   if (can('wo.execute')) return '#/my';
   if (can('downtime.view')) return '#/availability';
+  if (canAny('progress.submit', 'progress.view')) return '#/progress';
   return '#/assets';
 }
 
@@ -152,7 +186,7 @@ export const app = { afterLogin, defaultRoute, refreshBell, route };
 window.__cmms = app;
 
 (async () => {
-  if (await loadSession()) { renderNav(); showChrome(true); refreshBell(); }
+  if (await loadSession()) { renderNav(); showChrome(true); refreshBell(); startUploads(); }
   route();
   setInterval(refreshBell, 60000);
 })();

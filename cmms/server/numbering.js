@@ -3,7 +3,7 @@ const db = require('./db');
 const { today } = require('./time');
 
 // Consistent document numbering: PREFIX-YYYY-NNNNN, sequence restarts each year.
-const PREFIX = { PMS: 'PM', CM: 'CM', INSPECTION: 'IN', OTHER: 'OT', BREAKDOWN: 'BR', TXN: 'IT', PR: 'PR', INVESTIGATION: 'FI' };
+const PREFIX = { PMS: 'PM', CM: 'CM', INSPECTION: 'IN', OTHER: 'OT', BREAKDOWN: 'BR', TXN: 'IT', PR: 'PR', INVESTIGATION: 'FI', PROGRESS: 'SP' };
 
 function next(kind) {
   const prefix = PREFIX[kind];

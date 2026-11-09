@@ -615,6 +615,63 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_cost_source ON cost_entries(source_type, so
 CREATE INDEX IF NOT EXISTS ix_cost_asset ON cost_entries(asset_id, entry_date);
 CREATE INDEX IF NOT EXISTS ix_cost_wo ON cost_entries(work_order_id);
 
+-- ---------------------------------------------------------------- site progress reports
+-- Daily progress reports from project sites and the factory, submitted from a phone with photos.
+-- Quantities use the same measures as the FTB Supply & Production workbook (Monthly History).
+CREATE TABLE IF NOT EXISTS progress_reports (
+  id                    INTEGER PRIMARY KEY,
+  report_no             TEXT NOT NULL UNIQUE,
+  site_id               INTEGER NOT NULL REFERENCES sites(id),
+  report_date           TEXT NOT NULL,                  -- Asia/Manila calendar date of the work
+  area                  TEXT,                           -- block / lot / phase / production line
+  weather               TEXT CHECK (weather IS NULL OR weather IN ('SUNNY','CLOUDY','RAINY','STORMY')),
+  ftb_produced          INTEGER CHECK (ftb_produced IS NULL OR ftb_produced >= 0),
+  ftb_installed         INTEGER CHECK (ftb_installed IS NULL OR ftb_installed >= 0),
+  volume_produced_m3    REAL CHECK (volume_produced_m3 IS NULL OR volume_produced_m3 >= 0),
+  volume_installed_m3   REAL CHECK (volume_installed_m3 IS NULL OR volume_installed_m3 >= 0),
+  manpower_production   INTEGER CHECK (manpower_production IS NULL OR manpower_production >= 0),
+  manpower_installation INTEGER CHECK (manpower_installation IS NULL OR manpower_installation >= 0),
+  manhours_production   REAL CHECK (manhours_production IS NULL OR manhours_production >= 0),
+  manhours_installation REAL CHECK (manhours_installation IS NULL OR manhours_installation >= 0),
+  coca                  INTEGER CHECK (coca IS NULL OR coca >= 0),
+  work_done             TEXT NOT NULL,
+  issues                TEXT,
+  next_plan             TEXT,
+  latitude              REAL CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+  longitude             REAL CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
+  location_accuracy_m   REAL,
+  status                TEXT NOT NULL DEFAULT 'SUBMITTED' CHECK (status IN ('SUBMITTED','VOID')),
+  void_reason           TEXT,
+  voided_by             INTEGER REFERENCES users(id),
+  voided_at             TEXT,
+  client_request_id     TEXT UNIQUE,                    -- idempotency key from the phone's upload queue
+  created_by            INTEGER NOT NULL REFERENCES users(id),
+  created_at            TEXT NOT NULL,
+  updated_by            INTEGER REFERENCES users(id),
+  updated_at            TEXT NOT NULL,
+  version               INTEGER NOT NULL DEFAULT 1,
+  CHECK (status <> 'VOID' OR void_reason IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS ix_progress_site_date ON progress_reports(site_id, report_date);
+CREATE INDEX IF NOT EXISTS ix_progress_author ON progress_reports(created_by, report_date);
+
+-- photos of a progress report; the file itself is an ordinary attachment row
+CREATE TABLE IF NOT EXISTS progress_photos (
+  id              INTEGER PRIMARY KEY,
+  report_id       INTEGER NOT NULL REFERENCES progress_reports(id),
+  attachment_id   INTEGER NOT NULL UNIQUE REFERENCES attachments(id),
+  client_photo_id TEXT,                                 -- idempotency key: a retried upload is stored once
+  taken_at        TEXT,
+  created_at      TEXT NOT NULL,
+  UNIQUE (report_id, client_photo_id)
+);
+
+-- permission grants added by later versions are applied to existing role definitions once
+CREATE TABLE IF NOT EXISTS rbac_migrations (
+  key        TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
 -- ---------------------------------------------------------------- attachments, notifications, approvals, audit
 CREATE TABLE IF NOT EXISTS attachments (
   id          INTEGER PRIMARY KEY,
@@ -716,3 +773,5 @@ CREATE TRIGGER IF NOT EXISTS trg_wo_no_delete BEFORE DELETE ON work_orders
 BEGIN SELECT RAISE(ABORT, 'work orders cannot be deleted; cancel instead'); END;
 CREATE TRIGGER IF NOT EXISTS trg_asset_no_delete BEFORE DELETE ON assets
 BEGIN SELECT RAISE(ABORT, 'assets cannot be deleted; archive instead'); END;
+CREATE TRIGGER IF NOT EXISTS trg_progress_no_delete BEFORE DELETE ON progress_reports
+BEGIN SELECT RAISE(ABORT, 'progress reports cannot be deleted; void instead'); END;

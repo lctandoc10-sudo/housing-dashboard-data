@@ -15,6 +15,7 @@ const inventory = require('./services/inventory');
 const costs = require('./services/costs');
 const assetStatus = require('./services/assetStatus');
 const notify = require('./services/notify');
+const progress = require('./services/progress');
 
 function ctxFor(username) {
   const u = db.get().prepare('SELECT * FROM users WHERE username = ?').get(username);
@@ -50,6 +51,8 @@ function demo({ days = 90, password = 'Demo1234' } = {}) {
     ['custodian.cal', 'Arnel Tolentino', 'CUSTODIAN', 0, ['CAL'], 'Project Supervisor – Calauan', null],
     ['prod.cpf', 'Maricel Navarro', 'OPERATIONS', 0, ['CPF'], 'Production Supervisor', null],
     ['viewer', 'Executive Viewer', 'VIEWER', 1, [], 'Operations Director', null],
+    ['eng.cal', 'Engr. Bea Castillo', 'PROGRESS', 0, ['CAL'], 'Site Engineer – Calauan', null],
+    ['eng.south', 'Engr. Nico Ramos', 'PROGRESS', 0, ['NAIC', 'GEN'], 'Site Engineer – Naic & Gentri', null],
   ];
   const insU = d.prepare(`INSERT INTO users (username, full_name, password_hash, role_code, all_sites, position, hourly_rate, skills, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const hash = auth.hashPassword(password);
@@ -304,6 +307,30 @@ function demo({ days = 90, password = 'Demo1234' } = {}) {
   const pr = inventory.createPR(C['tech.jun'], { part_id: partId['MIX-ARM'], store_id: store('WH-CPF').id, qty: 2, remarks: 'Below reorder point – mixer arms used in recent breakdowns' });
   inventory.requestAdjustment(C['store.cpf'], { part_id: partId['GREASE-EP2'], store_id: store('WH-CPF').id, qty: -3, reason: 'Cycle count variance – 3 cartridges damaged' });
   void pr;
+
+  // ------------------------------------------------ site progress reports (last 45 days, Mon–Sat, no photos)
+  const PROGRESS_SITES = [['CAL', 'eng.cal', 'Phase 2'], ['NAIC', 'eng.south', 'Phase 1'], ['GEN', 'eng.south', 'Phase 3'], ['CPF', 'prod.cpf', 'Line 2']];
+  const weather = () => (rand() < 0.6 ? 'SUNNY' : rand() < 0.6 ? 'CLOUDY' : rand() < 0.85 ? 'RAINY' : 'STORMY');
+  for (let i = Math.min(45, days); i >= 1; i--) {
+    const day = time.addDays(time.manilaDate(realNow), -i);
+    if (time.isoWeekday(day) === 7) continue;
+    at(day, '17:30');
+    for (const [sc, who, area] of PROGRESS_SITES) {
+      if (rand() < 0.08) continue; // a few missed days, visible on the coverage panel
+      const w = weather();
+      const rain = w === 'RAINY' || w === 'STORMY';
+      const r = sc === 'CPF'
+        ? { volume_produced_m3: Math.round((rain ? 18 : 26 + rand() * 14) * 100) / 100, manpower_production: 26 + Math.floor(rand() * 8) }
+        : { ftb_produced: Math.floor(rand() * 4), ftb_installed: rain ? Math.floor(rand() * 2) : 1 + Math.floor(rand() * 5), manpower_installation: 8 + Math.floor(rand() * 6), coca: rand() < 0.25 ? 1 + Math.floor(rand() * 3) : 0 };
+      if (r.ftb_installed != null) r.volume_installed_m3 = Math.round(r.ftb_installed * (2 + rand() * 0.4) * 100) / 100;
+      if (r.manpower_production) r.manhours_production = r.manpower_production * 9;
+      if (r.manpower_installation) r.manhours_installation = r.manpower_installation * 8;
+      const blk = 10 + Math.floor((45 - i) / 6);
+      progress.create(C[who], { site_id: site(sc).id, report_date: day, weather: w, area: sc === 'CPF' ? area : `${area}, Blk ${blk}`,
+        work_done: sc === 'CPF' ? `Cast wall and slab panels on ${area}; demoulded and stacked previous day's panels` : `Installed ${r.ftb_installed} FTB at Blk ${blk}; grouting and alignment of erected panels`,
+        issues: rain ? 'Rain stopped erection work for part of the day' : null, next_plan: sc === 'CPF' ? 'Continue panel casting' : `Continue installation at Blk ${blk}`, ...r });
+    }
+  }
   time.setClock(null);
   notify.runChecks();
   // simulated history: treat notifications older than 3 days as already read
@@ -323,7 +350,7 @@ function main() {
     seed.initMasterData();
     const r = demo({ days: Number(process.env.CMMS_DEMO_DAYS || 90) });
     console.log(`Demo data loaded into ${file}:`, r);
-    console.log('Demo accounts (password Demo1234): manager, sup.factory, sup.projects, tech.jun, tech.mark, tech.ana, tech.joel, tech.rico, store.cpf, custodian.cal, prod.cpf, viewer');
+    console.log('Demo accounts (password Demo1234): manager, sup.factory, sup.projects, tech.jun, tech.mark, tech.ana, tech.joel, tech.rico, store.cpf, custodian.cal, prod.cpf, viewer, eng.cal, eng.south');
   } else {
     console.log('Usage: node server/cli.js init|demo');
     process.exitCode = 1;

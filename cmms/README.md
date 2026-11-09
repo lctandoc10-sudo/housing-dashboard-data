@@ -12,6 +12,7 @@ It is one system of record for:
 - downtime and availability
 - maintenance costs
 - KPIs and reports
+- **site progress reports with photos taken on the phone** (see below)
 
 All of it is stored in a real database and enforced by the server.
 
@@ -49,8 +50,43 @@ The demo creates these role accounts, all with the password `Demo1234`:
 | `custodian.cal` | Project Supervisor / Equipment Custodian (Calauan) |
 | `prod.cpf` | Production / Logistics user |
 | `viewer` | Management Viewer |
+| `eng.cal`, `eng.south` | Site Engineer / Progress Reporter (Calauan; Naic & Gentri) |
 
 The demo data is produced by running the real workflows day by day. Every dashboard figure comes from the recorded transactions; nothing is typed in by hand. Never load demo data into a production database. The `demo` command refuses to run if the database already contains equipment.
+
+## Site progress reports (phone + photos)
+
+Site engineers and project supervisors send a daily progress report from their phone. It goes straight into the database.
+
+1. Open the app on the phone and tap **📷** in the top bar (or **Site progress → New progress report**).
+2. Pick the site and date, then tap **Take photo** (opens the camera) or **Choose from gallery**. Add a caption if useful.
+3. Write the work accomplished, any issues, the plan for the next day, and today's quantities: FTB produced/installed, m³ produced/installed, manpower, manhours, COCA. Optionally tap **📍 Add my location**.
+4. Tap **Submit progress report**.
+
+What happens on submit:
+
+- **Photos are resized on the phone** (max 1920 px JPEG, about 300 KB instead of 4–10 MB). By default the site, area, date/time and reporter's name are **stamped** on each photo.
+- **The report and its photos are saved on the phone first, then uploaded.** With no signal, they stay on the phone and **upload automatically** when the connection is back: on reconnect, when the app is reopened, and every 30 seconds. The **⏳** counter in the top bar shows what is still waiting; **Site progress → Upload queue** lists it.
+- **No duplicates from retries.** The report and every photo carry an idempotency key, so a retry after a lost connection never stores them twice.
+- **Second report for the same site and day:** the app warns first (the quantities would be counted twice). If the report was saved offline, the warning appears in the upload queue with **Submit anyway** / **Correct and resend** / **Discard**.
+- The app itself must be opened while online. Once it is open, losing the signal does not lose the report.
+
+After submission:
+
+- **Progress reports** (`#/progress`) lists reports with photo thumbnails, filters and a "last 7 days" coverage panel showing which sites have not reported.
+- A report (`#/progress/:id`) shows the photo gallery and quantities; **Print / PDF** gives a printable report with photos.
+- The author can **correct** or **void** (with a reason) within `progress_edit_days` (default 7); users with `progress.manage` can do so at any time. Corrections are audited with old and new values. Reports are never deleted.
+- **Monthly progress summary** (`#/progress/monthly`) totals the reports per site and month. Units, m³, manhours and COCA are summed; manpower is the **average daily headcount**. **Export for Monthly History (.xlsx)** produces rows in the exact column order and site names of the *Monthly History* sheet of `Housing Database.xlsx`, ready to paste. The targets stay blank.
+
+Access:
+
+| Permission | Who has it by default |
+|---|---|
+| `progress.submit` – submit reports, see your own | Site Engineer / Progress Reporter (new role), Project Supervisor / Custodian, Production / Logistics, Manager |
+| `progress.view` – all reports and monthly summary in your sites | Site Engineer, Custodian, Maintenance Supervisor, Manager, Management Viewer |
+| `progress.manage` – correct or void any report | Manager, Administrator |
+
+Existing databases receive these default grants once, on the next start. Later changes under Roles & permissions are kept.
 
 ## Users and passwords
 
@@ -116,12 +152,12 @@ Business rules are changed in the app under **Administration → Settings & rule
 
 ## Offline use
 
-Offline operation is **not** implemented. The app needs a network connection. Failed saves show an error ("the change was NOT saved"). Breakdown reports, stock issues and work order creation carry an idempotency key, so retrying after a network error never creates duplicates.
+Offline operation is implemented **only for progress reports** (see above): they are kept on the phone and uploaded automatically. Everything else needs a network connection. Failed saves show an error ("the change was NOT saved"). Breakdown reports, stock issues and work order creation carry an idempotency key, so retrying after a network error never creates duplicates.
 
 ## Tests
 
 ```bash
-npm test     # 60 functional tests, Node's built-in test runner, in-memory database
+npm test     # 70 functional tests, Node's built-in test runner, in-memory database
 ```
 
 The tests cover:
@@ -138,6 +174,7 @@ The tests cover:
 - report and dashboard reconciliation
 - Excel import
 - secure uploads
+- site progress reports: idempotent phone uploads, site scope, validation, duplicates, photos, corrections, voids, monthly roll-up and export
 
 ## Project layout
 
