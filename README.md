@@ -6,6 +6,7 @@ This repository holds two things for **Precast Construction Solutions by Megawid
 |---|---|
 | [`cmms/`](cmms/) | **Maintenance management system (CMMS)** for the central precast factory and the housing project sites. It covers equipment, PMS, breakdowns, work orders, spare parts, downtime, costs and KPIs. |
 | `Housing Database.xlsx` | Data workbook for the FTB Supply & Production dashboard (project overview and monthly history per site). |
+| [`schedules/The Cove Demob & Transfer Schedule.xlsx`](schedules/) | Gantt chart, S-curve, considerations checklist and transfer list for the demob of The Cove installation and transfer to the Calista 2.0 site. |
 
 ## CMMS at a glance
 
